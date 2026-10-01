@@ -13,6 +13,7 @@ import java.util.UUID
 
 /** Local prototype storage. Production household persistence is a later slice. */
 class Vault(private val file: Path) {
+    val mediaDirectory: Path = file.toAbsolutePath().parent.resolve("media")
     private val json = Json { prettyPrint = true }
     private var state = if (Files.exists(file)) json.decodeFromString<VaultState>(Files.readString(file)) else VaultState()
     @Synchronized fun recipes(): List<Recipe> = state.recipes

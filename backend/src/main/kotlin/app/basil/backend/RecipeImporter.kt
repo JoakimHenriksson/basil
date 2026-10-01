@@ -6,9 +6,11 @@ import org.jsoup.Jsoup
 import java.time.Instant
 import java.util.UUID
 
+class NoStructuredRecipe : IllegalArgumentException("No complete structured recipe was found.")
+
 class RecipeImporter {
     private val json = Json { isLenient = true; ignoreUnknownKeys = true }
-    fun parse(html: String, source: String): Recipe {
+    fun parse(html: String, source: String, structuredOnly: Boolean = false): Recipe {
         val document = Jsoup.parse(html, source)
         val candidates = mutableListOf<JsonObject>()
         fun walk(element: JsonElement) {
@@ -24,7 +26,19 @@ class RecipeImporter {
         document.select("script[type=application/ld+json]").forEach { script -> runCatching { walk(json.parseToJsonElement(script.data())) } }
         // Some sites expose their schema in a JSON-valued HTML data attribute.
         document.select("[data-model]").forEach { element -> runCatching { walk(json.parseToJsonElement(element.attr("data-model"))) } }
-        val schema = candidates.firstOrNull()
+        val schema = candidates.firstOrNull { candidate ->
+            !((candidate["name"] as? JsonPrimitive)?.content).isNullOrBlank() &&
+                (candidate["recipeIngredient"] as? JsonArray)?.isNotEmpty() == true && candidate["recipeInstructions"] != null
+        }
+        fun image(value: JsonElement?): String? = when (value) {
+            is JsonPrimitive -> value.content
+            is JsonArray -> value.firstNotNullOfOrNull { image(it) }
+            is JsonObject -> image(value["url"] ?: value["contentUrl"])
+            else -> null
+        }
+        fun imageUrl(value: String?): String? = value?.let { runCatching { java.net.URI(source).resolve(it).toString() }.getOrNull() }
+        val pageImage = document.selectFirst("meta[property=og:image], meta[name=twitter:image]")?.attr("content")
+            ?: document.selectFirst("article img[src], main img[src], [itemprop=image][src]")?.attr("src")
         if (schema != null) {
             fun text(key: String) = when (val value = schema[key]) { is JsonPrimitive -> value.content; is JsonArray -> (value.firstOrNull() as? JsonPrimitive)?.content.orEmpty(); else -> "" }
             val lines = (schema["recipeIngredient"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.content } ?: emptyList()
@@ -38,13 +52,19 @@ class RecipeImporter {
                 }
             }
             steps(schema["recipeInstructions"])
+            if (instructions.none { it.isNotBlank() }) {
+                if (structuredOnly) throw NoStructuredRecipe()
+                throw IllegalArgumentException("No cooking instructions were found on this page.")
+            }
             val yieldText = text("recipeYield")
             val servings = yieldCount(yieldText)
             require(text("name").isNotBlank() && lines.isNotEmpty()) { "No complete recipe data was found on this page." }
             return Recipe(UUID.randomUUID().toString(), Jsoup.parse(text("name")).text(), source, servings, yieldText,
                 lines.map { Ingredients.parse(Jsoup.parse(it).text()) }, instructions.filter { it.isNotBlank() }, Instant.now().toString(),
-                if (servings == null) listOf("The recipe yield needs review before scaling.") else emptyList())
+                if (servings == null) listOf("The recipe yield needs review before scaling.") else emptyList(),
+                originalImageUrl = imageUrl(image(schema["image"]) ?: pageImage))
         }
+        if (structuredOnly) throw NoStructuredRecipe()
         val content = document.selectFirst(".entry-content") ?: document.selectFirst("[itemprop=recipeInstructions]") ?: document.selectFirst("article")
             ?: throw IllegalArgumentException("This page has no readable recipe. Try sharing the recipe page rather than a search page.")
         content.select(".sharedaddy, .sd-sharing, .panorama-sticky, .modul, .ad-panorama-wrapper, aside").remove()
@@ -63,7 +83,8 @@ class RecipeImporter {
         val methods = if (methodStart >= 0) paragraphs.drop(methodStart).map { methodPattern.replaceFirst(it, "").trim() }.filter { it.isNotBlank() } else paragraphs
         return Recipe(UUID.randomUUID().toString(), document.selectFirst("h1")?.text() ?: document.title(), source,
             yieldCount(yieldText), yieldText, ingredientLines.map(Ingredients::parse), methods, Instant.now().toString(),
-            listOf("Imported from page text. Check the ingredient list, instructions, and yield."))
+            listOf("Imported from page text. Check the ingredient list, instructions, and yield."),
+            originalImageUrl = imageUrl(pageImage))
     }
     private fun yieldCount(text: String): Int? {
         if (Regex("\\d\\s*[-–]\\s*\\d").containsMatchIn(text)) return null

@@ -30,6 +30,7 @@ class BasilApi(private val base: String) {
     suspend fun recipes(): List<Recipe> = client.get("$base/v1/recipes").body()
     suspend fun pantry(): List<PantryItem> = client.get("$base/v1/pantry").body()
     suspend fun import(url: String): Recipe = client.post("$base/v1/recipes/import") { contentType(ContentType.Application.Json); setBody(ImportRequest(url)) }.body()
+    suspend fun capture(page: CaptureRequest): Recipe = client.post("$base/v1/recipes/capture") { contentType(ContentType.Application.Json); setBody(page) }.body()
     suspend fun preview(id: String, servings: Int): RecipePreview = client.post("$base/v1/recipes/$id/preview") { contentType(ContentType.Application.Json); setBody(PreviewRequest(servings)) }.body()
     suspend fun setYield(id: String, servings: Int): Recipe = client.put("$base/v1/recipes/$id/yield") { contentType(ContentType.Application.Json); setBody(YieldRequest(servings)) }.body()
     suspend fun add(item: PantryRequest): PantryItem = client.post("$base/v1/pantry") { contentType(ContentType.Application.Json); setBody(item) }.body()

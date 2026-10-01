@@ -19,3 +19,30 @@ when building. Local HTTP is enabled only in the debug manifest.
 The build is verified on Windows. Barcode scanning, device share-flow QA,
 offline storage and queued changes, AI, and budgets are not implemented yet.
 See the [product plan](../docs/app-plan.md).
+
+The built-in WebView supports search, HTTPS navigation, Back/Forward, and
+Save recipe. Save captures the loaded DOM on demand with no native JavaScript
+bridge. File access and mixed content are disabled. The browser stays open after
+saving; the saved detail displays the retained photo and Open original.
+
+## Rendered-page device test
+
+Start the backend with an isolated `BASIL_DATA` vault, then boot an Android
+emulator and run `:android:connectedDebugAndroidTest`. The test loads a fixture
+into the real WebView, lets JavaScript insert its recipe data, taps Save recipe,
+checks that browsing remains open, and checks the saved copy and original link.
+It adds a test recipe to the backend vault.
+
+This Windows host's Gradle device-result transport failed during verification;
+the test was run directly with ADB after `:android:assembleDebugAndroidTest`:
+
+```sh
+adb install -r android/build/outputs/apk/debug/android-debug.apk
+adb install -r android/build/outputs/apk/androidTest/debug/android-debug-androidTest.apk
+adb shell am instrument -w app.basil.android.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+The emulator does not trust this environment's HTTPS certificates, so live-site
+WebView navigation remains unverified here. Certificate errors are surfaced and
+rejected. Real-site backend imports and photo downloads use the Windows trust
+store and were checked separately.

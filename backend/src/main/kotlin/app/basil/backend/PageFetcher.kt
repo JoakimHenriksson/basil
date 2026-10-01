@@ -9,7 +9,14 @@ import java.util.concurrent.TimeUnit
 
 fun interface PageFetcher { fun fetch(url: String): Pair<String, String> }
 
+data class Download(val bytes: ByteArray, val contentType: String)
+
 class PublicPageFetcher : PageFetcher {
+    override fun fetch(url: String): Pair<String, String> {
+        val (resolved, download) = download(url, MAX_BYTES, setOf("text/html", "application/xhtml+xml"))
+        val charset = runCatching { java.nio.charset.Charset.forName(download.contentType.substringAfter("charset=", "UTF-8").substringBefore(';').trim()) }.getOrDefault(Charsets.UTF_8)
+        return resolved to download.bytes.toString(charset)
+    }
     private val client = OkHttpClient.Builder()
         .followRedirects(false).followSslRedirects(false)
         .callTimeout(20, TimeUnit.SECONDS)
@@ -19,7 +26,7 @@ class PublicPageFetcher : PageFetcher {
             }
         })
         .build()
-    override fun fetch(url: String): Pair<String, String> {
+    fun download(url: String, maxBytes: Int, allowedTypes: Set<String>): Pair<String, Download> {
         var current = url
         repeat(5) {
             validateUrl(current)
@@ -30,12 +37,12 @@ class PublicPageFetcher : PageFetcher {
                 } else {
                     require(response.isSuccessful) { "The recipe site returned HTTP ${response.code}." }
                     val type = response.header("Content-Type").orEmpty()
-                    require(type.contains("text/html", true) || type.contains("application/xhtml", true)) { "The link must point to a recipe web page." }
+                    require(type.substringBefore(';').trim().lowercase() in allowedTypes) { "This resource has an unsupported content type." }
                     val body = requireNotNull(response.body)
-                    require(body.contentLength() <= MAX_BYTES) { "This page is too large to import." }
-                    val bytes = body.byteStream().readNBytes(MAX_BYTES + 1)
-                    require(bytes.size <= MAX_BYTES) { "This page is too large to import." }
-                    return current to bytes.toString(body.contentType()?.charset(Charsets.UTF_8) ?: Charsets.UTF_8)
+                    require(body.contentLength() <= maxBytes) { "This page is too large to import." }
+                    val bytes = body.byteStream().readNBytes(maxBytes + 1)
+                    require(bytes.size <= maxBytes) { "This page is too large to import." }
+                    return current to Download(bytes, type)
                 }
             }
         }

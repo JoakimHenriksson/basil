@@ -23,6 +23,8 @@ data class Recipe(
     val instructions: List<String>,
     val savedAt: String,
     val warnings: List<String> = emptyList(),
+    val originalImageUrl: String? = null,
+    val imagePath: String? = null,
 )
 
 @Serializable data class ImportRequest(val url: String)
@@ -38,3 +40,5 @@ data class Recipe(
     val warnings: List<String>,
 )
 @Serializable data class ApiError(val code: String, val message: String)
+
+@Serializable data class CaptureRequest(val url: String, val html: String)

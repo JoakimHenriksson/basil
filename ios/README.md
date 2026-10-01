@@ -26,3 +26,8 @@ configuration, signing, and release packaging also remain work.
 
 Windows cannot compile or run this target. The macOS CI job is configured but
 has not been executed remotely. See the [product plan](../docs/app-plan.md).
+
+The recipe browser uses a Kotlin WKWebView bridge and shares the browser toolbar
+and capture logic with Android. It supports navigation and on-demand rendered
+page capture. The saved detail displays the retained photo and Open original.
+This bridge still requires compilation and runtime validation on macOS.

@@ -52,7 +52,13 @@ candidates.
 
 ## Recipe preservation and normalization
 
-Import a recipe URL through each platform's share flow or a field in Basil.
+Browse recipe sites inside Basil using Android WebView and iOS WKWebView.
+Save recipe captures the currently rendered page only when tapped, extracts the
+recipe and main photo, and leaves browsing uninterrupted. Store the extracted
+recipe and a retained photo, without a full-page snapshot. Always retain the
+original URL and offer Open original. Browser cookies stay on the device.
+
+Also import a recipe URL through each platform's share flow or a field in Basil.
 Prefer structured Recipe data supplied by the site, such as JSON-LD. Fall back
 to content extraction and AI-assisted parsing where needed. Support pasted
 text and recipe photos when a page cannot be imported.
@@ -301,7 +307,7 @@ helps but must not be required for correctness.
 The workspace follows the `cogitatibus` bare repository and hierarchical
 worktree conventions. Components are `backend/`, `android/`, `ios/`, and
 `contracts/`; see [the development workflow](development.md). Build files and
-application code have not been scaffolded.
+application code exist for the local recipe foundation; production household features remain planned.
 
 ## Delivery order
 

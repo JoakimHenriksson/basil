@@ -3,7 +3,8 @@
 A Kotlin app for keeping recipes, choosing servings, and buying what is missing.
 
 The first working slice imports recipe pages, preserves the content locally,
-scales ingredients, and compares them with a simple pantry. Android and iOS
+scales ingredients, and compares them with a simple pantry. Its built-in browser
+captures the page you are viewing and saves a local copy of the recipe photo. Android and iOS
 share Kotlin Multiplatform application code and a Compose Multiplatform UI.
 
 ## Run the first slice
@@ -35,7 +36,12 @@ workspace; macOS CI is configured but has not been run remotely.
 
 ## Try it
 
-Paste a recipe link or share one from an Android browser. Choose servings and
+Tap **Browse recipes** to search or visit a recipe site inside Basil. Tap
+**Save recipe** to preserve the currently loaded page as a recipe, including its
+photo when available. Saving leaves you on the page; **View saved** opens your copy.
+Every copy retains the original URL and an **Open original** link.
+
+You can also paste a recipe link or share one from an Android browser. Choose servings and
 ask what to buy. Add known ingredients in Pantry to reduce the missing list.
 
 Real examples verified with the running Kotlin importer:
@@ -50,11 +56,35 @@ Standard recipe data is preferred. Blog-text fallback preserves the recipe and
 flags review; ambiguous yields can be set in the app. These checks cover the
 specific pages above, not every recipe on each site.
 
+## Gemini extraction
+
+Structured recipe data is used first. For other pages, the backend can use Gemini
+to extract a recipe from relevant page text. Set `GEMINI_API_KEY` in the backend
+process environment; optionally set `BASIL_GEMINI_MODEL` (default:
+`gemini-2.5-flash`). Keys stay on the backend. No page is sent until you choose
+Save recipe. Gemini imports carry a review warning, preserve original ingredient
+wording, and use Kotlin normalization and scaling rules.
+
+Without a key, the existing page-text importer remains available. If Gemini is
+unavailable, a readable text recipe can still be saved with a warning. Google
+API requests are verified with fake responses; a live Gemini extraction has not
+been run in this workspace.
+
+Photos are copied to a `media/` directory beside the vault and served by Basil.
+Back up both the vault and that directory. A failed photo download keeps the
+recipe and displays a warning. SVGs and authenticated photos are not supported.
+Full pages, browser cookies, and browsing history are not stored in the vault.
+
+Android rendered-page capture is checked on an emulator with a JavaScript fixture.
+Live WebView navigation is still unverified because the emulator rejects this
+host environment's HTTPS certificates. Real ICA recipe and photo preservation
+was checked through the backend. The iOS browser requires macOS validation.
+
 ## Current boundaries
 
 This is a local development prototype using an atomic JSON vault. Authentication,
 PostgreSQL household persistence, invitations, barcode scanning, receipt and
-recipe-photo imports, budgets, offline synchronization, Gemini, and Apple
+recipe-photo imports, budgets, offline synchronization, Gemini meal suggestions, and Apple
 Intelligence remain implementation work. Keep the unauthenticated service local.
 
 - [Product plan](docs/app-plan.md)
@@ -62,5 +92,5 @@ Intelligence remain implementation work. Keep the unauthenticated service local.
 - [Backend](backend/README.md), [Android](android/README.md), [iOS](ios/README.md)
 - [API contracts](contracts/README.md)
 
-Work happens in `feature/recipe-foundation`. The user owns integration into
+This slice lives in `feature/recipe-browser`, based on `feature/recipe-foundation`. The user owns integration into
 `main`.

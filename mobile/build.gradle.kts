@@ -19,6 +19,8 @@ kotlin {
             implementation(compose.foundation)
             implementation(compose.material3)
             implementation(compose.ui)
+            implementation("io.coil-kt.coil3:coil-compose:3.0.4")
+            implementation("io.coil-kt.coil3:coil-network-ktor3:3.0.4")
             implementation("io.ktor:ktor-client-core:3.0.3")
             implementation("io.ktor:ktor-client-content-negotiation:3.0.3")
             implementation("io.ktor:ktor-serialization-kotlinx-json:3.0.3")

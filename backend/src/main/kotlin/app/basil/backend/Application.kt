@@ -7,6 +7,7 @@ import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import io.ktor.server.plugins.contentnegotiation.*
+import io.ktor.server.plugins.BadRequestException
 import io.ktor.server.plugins.statuspages.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
@@ -22,24 +23,39 @@ fun main() {
     embeddedServer(Netty, port = port, host = host) { basil(vault) }.start(wait = true)
 }
 
-fun Application.basil(vault: Vault, fetcher: PageFetcher = PublicPageFetcher()) {
+fun Application.basil(
+    vault: Vault,
+    fetcher: PageFetcher = PublicPageFetcher(),
+    images: RecipeImages = RecipeImages(vault.mediaDirectory),
+    extractor: RecipeExtractor? = GeminiRecipeExtractor.configured(),
+) {
     install(ContentNegotiation) { json() }
     install(StatusPages) {
+        exception<BadRequestException> { call, _ -> call.respond(HttpStatusCode.BadRequest, ApiError("invalid_request", "Please check the recipe capture request.")) }
         exception<IllegalArgumentException> { call, error -> call.respond(HttpStatusCode.BadRequest, ApiError("invalid_request", error.message ?: "Please check the request.")) }
         exception<Throwable> { call, error ->
             this@basil.environment.log.error("Request failed: {}", error.javaClass.simpleName)
             call.respond(HttpStatusCode.InternalServerError, ApiError("request_failed", "The operation failed. Please try again."))
         }
     }
-    val importer = RecipeImporter()
+    val capture = RecipeCapture(vault, images, extractor)
     routing {
         get("/health") { call.respond(mapOf("status" to "ok")) }
         route("/v1") {
             get("/recipes") { call.respond(vault.recipes()) }
             post("/recipes/import") {
                 val request = call.receive<ImportRequest>()
-                val recipe = withContext(Dispatchers.IO) { val (url, html) = fetcher.fetch(request.url.trim()); vault.save(importer.parse(html, url)) }
+                val recipe = withContext(Dispatchers.IO) { val (url, html) = fetcher.fetch(request.url.trim()); capture.save(CaptureRequest(url, html)) }
                 call.respond(HttpStatusCode.Created, recipe)
+            }
+            post("/recipes/capture") {
+                val request = call.receive<CaptureRequest>()
+                call.respond(HttpStatusCode.Created, withContext(Dispatchers.IO) { capture.save(request) })
+            }
+            get("/media/{name}") {
+                val file = images.file(call.parameters["name"].orEmpty())
+                if (file == null) call.respond(HttpStatusCode.NotFound)
+                else call.respondFile(file.toFile())
             }
             post("/recipes/{id}/preview") {
                 val recipe = vault.recipe(call.parameters["id"].orEmpty())

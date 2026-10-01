@@ -10,6 +10,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.layout.ContentScale
+import coil3.compose.AsyncImage
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
 
@@ -33,6 +36,10 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
         var url by remember { mutableStateOf(sharedUrl) }
         var busy by remember { mutableStateOf(false) }
         var previewLoading by remember { mutableStateOf(false) }
+        var browserSaved by remember { mutableStateOf<Recipe?>(null) }
+        var browserStart by remember { mutableStateOf("https://www.google.com/search?q=recipes") }
+        var browserError by remember { mutableStateOf<String?>(null) }
+        val uriHandler = LocalUriHandler.current
         var error by remember { mutableStateOf<String?>(null) }
         fun operate(block: suspend () -> Unit) {
             scope.launch {
@@ -62,6 +69,30 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
         val scrollState = rememberScrollState()
         LaunchedEffect(tab, selected?.id) { scrollState.scrollTo(0) }
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            if (tab == "Browse") {
+                Column(Modifier.fillMaxSize()) {
+                    browserError?.let {
+                        Row(Modifier.fillMaxWidth().padding(12.dp)) {
+                            Text(it, Modifier.weight(1f), color = MaterialTheme.colorScheme.error)
+                            TextButton(onClick = { browserError = null }) { Text("Dismiss") }
+                        }
+                    }
+                    RecipeBrowser(browserStart, !busy, browserSaved?.let { "Saved ${it.title}" },
+                        onCapture = { page ->
+                            browserError = null; browserSaved = null
+                            scope.launch {
+                                busy = true
+                                try { browserSaved = api.capture(page); recipes = api.recipes() }
+                                catch (failure: Exception) { browserError = failure.message ?: "Couldn't save this recipe." }
+                                finally { busy = false }
+                            }
+                        },
+                        onError = { browserError = it },
+                        onClose = { tab = "Recipes" },
+                        onViewSaved = { browserSaved?.let { selected = it; servings = it.baseServings ?: 1; tab = "Recipes" } })
+                }
+                return@Surface
+            }
             Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 22.dp).verticalScroll(scrollState), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Spacer(Modifier.height(10.dp))
                 Text("Basil", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
@@ -90,6 +121,7 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
                         }
                     }
                 } else if (selected == null) {
+                    Button(onClick = { browserStart = url.takeIf { it.startsWith("https://") } ?: "https://www.google.com/search?q=recipes"; tab = "Browse"; browserSaved = null; browserError = null }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("Browse recipes") }
                     Text("Keep a favourite", style = MaterialTheme.typography.titleLarge)
                     OutlinedTextField(url, { url = it }, label = { Text("Recipe link") }, singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth())
                     Button(enabled = !busy && url.isNotBlank(), modifier = Modifier.fillMaxWidth(), onClick = {
@@ -111,6 +143,11 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
                     val recipe = selected!!
                     TextButton(onClick = { selected = null; preview = null }, enabled = !busy) { Text("Back to recipes") }
                     Text(recipe.title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    recipe.imagePath?.let { path ->
+                        AsyncImage(model = baseUrl.trimEnd('/') + path, contentDescription = recipe.title,
+                            contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().height(220.dp))
+                    }
+                    TextButton(onClick = { uriHandler.openUri(recipe.sourceUrl) }) { Text("Open original") }
                     Text("Saved from ${recipe.sourceUrl}", style = MaterialTheme.typography.bodySmall)
                     recipe.warnings.forEach { Text(it, color = MaterialTheme.colorScheme.error) }
                     if (recipe.baseServings == null) {

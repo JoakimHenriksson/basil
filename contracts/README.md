@@ -9,6 +9,7 @@ Current HTTP operations:
 
 - `GET /health`
 - `GET /v1/recipes` and `POST /v1/recipes/import`
+- `POST /v1/recipes/capture` and `GET /v1/media/{name}`
 - `POST /v1/recipes/{id}/preview` and `PUT /v1/recipes/{id}/yield`
 - `GET /v1/pantry`, `POST /v1/pantry`, and `DELETE /v1/pantry/{id}`
 
@@ -18,3 +19,7 @@ record versions, stock operation IDs, money, AI drafts, and synchronization
 contracts are added with their corresponding slices.
 
 See the [product plan](../docs/app-plan.md) for those planned operations.
+
+Recipes include an optional retained `imagePath` and `originalImageUrl`. The
+original recipe URL is always `sourceUrl`. New fields have defaults so older
+vaults remain readable. Browser capture payloads are not persisted.
