@@ -9,7 +9,7 @@ import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.util.UUID
 
-@Serializable private data class VaultState(val recipes: List<Recipe> = emptyList(), val pantry: List<PantryItem> = emptyList(), val recipeHistory: List<Recipe> = emptyList(), val shopping: ShoppingState = ShoppingState(), val products: List<Product> = emptyList(), val movements: List<StockMovement> = emptyList())
+@Serializable private data class VaultState(val recipes: List<Recipe> = emptyList(), val pantry: List<PantryItem> = emptyList(), val recipeHistory: List<Recipe> = emptyList(), val shopping: ShoppingState = ShoppingState(), val products: List<Product> = emptyList(), val movements: List<StockMovement> = emptyList(), val purchases: List<Purchase> = emptyList(), val purchaseHistory: List<Purchase> = emptyList(), val budget: BudgetSettings = BudgetSettings())
 
 /** Local prototype storage. Production household persistence is a later slice. */
 class Vault(private val file: Path) {
@@ -202,6 +202,73 @@ class Vault(private val file: Path) {
         persist(state.copy(pantry = Stock.apply(state.pantry, deltas), movements = state.movements + movement))
         return movement
     }
+    @Synchronized fun purchases(): List<Purchase> = state.purchases
+    @Synchronized fun budgetSettings(): BudgetSettings = state.budget
+    @Synchronized fun setBudget(settings: BudgetSettings): BudgetSettings {
+        require(settings.currency in setOf("SEK", "EUR", "USD", "GBP", "NOK", "DKK")) { "Choose a supported currency." }
+        require(settings.monthlyLimitMinor == null || settings.monthlyLimitMinor in 0..1_000_000_000_000L) { "Enter a nonnegative monthly limit." }
+        require(state.purchases.isEmpty() || settings.currency == state.budget.currency) { "The currency cannot change after recording purchases." }
+        persist(state.copy(budget = settings)); return settings
+    }
+    private fun receiptFingerprint(request: ReceiptRequest): String {
+        val content = request.store.trim().lowercase(java.util.Locale.ROOT) + "|" + request.purchasedOn + "|" + request.currency + "|" + request.reference + "|" +
+            if (request.reference.isNotBlank()) "" else request.totalMinor.toString() + "|" + request.lines.sortedBy { it.name }.joinToString { "${it.name.trim().lowercase(java.util.Locale.ROOT)}:${it.totalMinor}" }
+        return java.security.MessageDigest.getInstance("SHA-256").digest(content.toByteArray()).joinToString("") { "%02x".format(it) }
+    }
+    @Synchronized fun acceptReceipt(request: ReceiptRequest): Purchase {
+        state.purchases.find { it.receipt.id == request.id }?.let { require(it.receipt == request) { "Receipt ID already used." }; return it }
+        Costs.validate(request, state.budget.currency)
+        val fingerprint = receiptFingerprint(request)
+        require((state.purchases + state.purchaseHistory).none { it.fingerprint == fingerprint }) { "This receipt is already recorded. Correct the existing receipt instead." }
+        val additions = mutableListOf<StockMovement>()
+        request.lines.forEach { line ->
+            if (line.stockAction == "link") {
+                fun links(item: ReceiptLine) = listOfNotNull(item.linkedAddId) + item.linkedAddIds
+                val ids = links(line)
+                require(ids.isNotEmpty() && ids.distinct().size == ids.size) { "Choose each barcode Add once." }
+                val scans = ids.map { scanId ->
+                    val scan = requireNotNull(state.movements.find { it.id == scanId && it.kind == "add" }) { "Choose a recorded barcode Add." }
+                    require(state.movements.none { it.undoOf == scan.id }) { "That Add was undone." }
+                    require(state.purchases.none { purchase -> purchase.receipt.lines.any { scan.id in links(it) && it.stockAction == "link" } } && request.lines.count { scan.id in links(it) && it.stockAction == "link" } == 1) { "That barcode Add already belongs to a purchase." }
+                    scan
+                }
+                val deltas = scans.flatMap { it.deltas }
+                require(deltas.all { it.lot.name == Ingredients.canonical(line.ingredient, line.unit) && it.lot.unit == line.unit } && deltas.sumOf { Ingredients.number(it.amount) }.compareTo(Stock.positive(line.quantity!!)) == 0) { "The receipt quantity and ingredient must match the recorded Adds." }
+            } else if (line.stockAction == "add") {
+                val lot = PantryItem(UUID.randomUUID().toString(), Ingredients.canonical(line.ingredient, line.unit), "0", line.unit)
+                additions += StockMovement("receipt-${request.id}-${line.id}", "receipt-add", java.time.Instant.now().toString(), listOf(StockDelta(lot, Ingredients.display(Stock.positive(line.quantity!!)))))
+            }
+        }
+        val purchase = Purchase(request, fingerprint)
+        persist(state.copy(purchases = state.purchases + purchase, pantry = Stock.apply(state.pantry, additions.flatMap { it.deltas }), movements = state.movements + additions))
+        return purchase
+    }
+    @Synchronized fun correctReceipt(id: String, request: ReceiptCorrection): Purchase {
+        val old = requireNotNull(state.purchases.find { it.receipt.id == id }) { "That purchase wasn't found." }
+        require(old.revision == request.expectedRevision) { "This purchase changed. Reload it before correcting." }
+        require(request.lineTotals.keys == old.receipt.lines.map { it.id }.toSet()) { "Correct every existing receipt line." }
+        val receipt = old.receipt.copy(store = request.store, purchasedOn = request.purchasedOn, totalMinor = request.totalMinor, lines = old.receipt.lines.map { it.copy(totalMinor = request.lineTotals.getValue(it.id)) })
+        Costs.validate(receipt, state.budget.currency)
+        val corrected = Purchase(receipt, receiptFingerprint(receipt), old.revision + 1)
+        require(state.purchases.none { it.receipt.id != id && it.fingerprint == corrected.fingerprint }) { "This receipt is already recorded." }
+        persist(state.copy(purchases = state.purchases.map { if (it.receipt.id == id) corrected else it }, purchaseHistory = state.purchaseHistory + old))
+        return corrected
+    }
+    @Synchronized fun purchaseHistory(id: String): List<Purchase> = state.purchaseHistory.filter { it.receipt.id == id } + state.purchases.filter { it.receipt.id == id }
+    @Synchronized fun budget(month: String): BudgetSummary {
+        require(runCatching { java.time.YearMonth.parse(month) }.isSuccess) { "Enter a month as YYYY-MM." }
+        val spent = state.purchases.filter { it.receipt.purchasedOn.startsWith(month + "-") }.fold(0L) { sum, purchase -> Math.addExact(sum, purchase.receipt.totalMinor) }
+        return BudgetSummary(month, state.budget, spent, state.budget.monthlyLimitMinor?.let { Math.subtractExact(it, spent) })
+    }
+    @Synchronized fun recipeCost(id: String, servings: Int): CostEstimate {
+        val recipe = requireNotNull(recipe(id)) { "That recipe wasn't found." }
+        val scaled = Ingredients.preview(recipe, servings, emptyList())
+        return Costs.estimate(scaled.ingredients, servings, state.budget.currency, Costs.prices(state.purchases))
+    }
+    @Synchronized fun shoppingCost(): CostEstimate {
+        val items = shopping().items.filterNot { it.checked }.map { Ingredient(it.name, it.name, it.amount, it.unit, needsReview = it.needsReview || it.manual) }
+        return Costs.estimate(items, null, state.budget.currency, Costs.prices(state.purchases), packages = true)
+    }
     @Synchronized fun fork(file: Path): Vault {
         require(!Files.exists(file)) { "The household vault already exists." }
         val target = Vault(file)
@@ -214,7 +281,7 @@ class Vault(private val file: Path) {
     }
     @Synchronized fun snapshot(): HouseholdSnapshot {
         val version = java.security.MessageDigest.getInstance("SHA-256").digest(json.encodeToString(state).toByteArray()).joinToString("") { "%02x".format(it) }
-        return HouseholdSnapshot(version, state.recipes, state.pantry, shopping(), state.products, state.movements)
+        return HouseholdSnapshot(version, state.recipes, state.pantry, shopping(), state.products, state.movements, state.purchases, state.budget)
     }
     private fun persist(next: VaultState) {
         val validChecks = Shopping.list(next.shopping, next.pantry).items.filter { it.checked && !it.manual }.map { it.id }.toSet()

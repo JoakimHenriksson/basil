@@ -43,6 +43,8 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
         var reconciledUses by remember { mutableStateOf<Set<String>>(emptySet()) }
         var shopping by remember { mutableStateOf<ShoppingList?>(null) }
         var pantry by remember { mutableStateOf<List<PantryItem>>(emptyList()) }
+        var scannedRecipeText by remember { mutableStateOf("") }
+        var scannedDraft by remember { mutableStateOf<Recipe?>(null) }
         var editing by remember { mutableStateOf(false) }
         var deleting by remember { mutableStateOf(false) }
         var query by remember { mutableStateOf("") }
@@ -60,6 +62,7 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
         var browserError by remember { mutableStateOf<String?>(null) }
         val uriHandler = LocalUriHandler.current
         var error by remember { mutableStateOf<String?>(null) }
+        val recipePhotoReader = rememberPhotoTextReader({ scannedRecipeText = it }, { error = it })
         fun operate(block: suspend () -> Unit) {
             scope.launch {
                 busy = true; error = null
@@ -144,7 +147,7 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
                 Text("Basil", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 Text("What would you like to eat?", style = MaterialTheme.typography.titleMedium)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    listOf("Recipes", "Pantry", "Shopping", "Household").forEach { name -> FilterChip(selected = tab == name, enabled = !busy, onClick = { tab = name; selected = null; editing = false; preview = null }, label = { Text(name) }) }
+                    listOf("Recipes", "Pantry", "Shopping", "Costs", "Household").forEach { name -> FilterChip(selected = tab == name, enabled = !busy, onClick = { tab = name; selected = null; editing = false; preview = null }, label = { Text(name) }) }
                 }
                 TextButton(enabled = !busy, onClick = { operate { api.refresh() } }) { Text("Sync household") }
                 if (api.offline) Text("Offline · showing saved household data")
@@ -165,11 +168,13 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
                     }
                 }
                 if (editing) {
-                    RecipeEditor(selected, !busy,
+                    RecipeEditor(selected ?: scannedDraft, !busy,
                         onSave = { request -> operate {
                             val updated = selected?.let { api.editRecipe(it.id, request) } ?: api.createRecipe(request)
-                            recipes = api.recipes(); selected = updated; servings = updated.baseServings ?: 1; preview = null; editing = false
-                        } }, onCancel = { editing = false })
+                            recipes = api.recipes(); selected = updated; servings = updated.baseServings ?: 1; preview = null; editing = false; scannedDraft = null; scannedRecipeText = ""
+                        } }, onCancel = { editing = false; scannedDraft = null })
+                } else if (tab == "Costs") {
+                    CostsScreen(api, !busy, products, movements, onAction = { action -> operate { action() } }, onError = { error = it })
                 } else if (tab == "Household") {
                     HouseholdScreen(api, !busy, onAction = { action -> operate { action() } })
                 } else if (tab == "Shopping") {
@@ -215,8 +220,20 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
                     }) { Text("Save recipe") }
                     Text("Try a recipe from ICA, Arla, or Zeinas Kitchen. A saved copy stays here even if the original page disappears.", style = MaterialTheme.typography.bodyMedium)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(enabled = !busy, onClick = { selected = null; editing = true }) { Text("Write a recipe") }
+                        TextButton(enabled = !busy, onClick = { selected = null; scannedDraft = null; editing = true }) { Text("Write a recipe") }
                         TextButton(enabled = !busy && recipes.isNotEmpty(), onClick = { operate { shareExport(api.exportRecipes()) } }) { Text("Export recipes") }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(enabled = !busy, onClick = recipePhotoReader.capture) { Text("Photograph recipe") }
+                        TextButton(enabled = !busy, onClick = recipePhotoReader.choose) { Text("Choose recipe photo") }
+                    }
+                    if (scannedRecipeText.isNotBlank()) {
+                        OutlinedTextField(scannedRecipeText, { scannedRecipeText = it }, label = { Text("Scanned recipe text") }, minLines = 4, enabled = !busy, modifier = Modifier.fillMaxWidth())
+                        Button(enabled = !busy, onClick = { operate {
+                            val draft = api.recipeTextDraft(scannedRecipeText)
+                            scannedDraft = Recipe("scanned-draft", draft.title, "", draft.baseServings, draft.baseServings?.toString().orEmpty(), draft.ingredientLines.map { Ingredient(it, it, needsReview = true) }, draft.instructions, "", notes = draft.notes)
+                            selected = null; editing = true
+                        } }) { Text("Extract scanned recipe") }
                     }
                     Text("Your recipes", style = MaterialTheme.typography.titleLarge)
                     OutlinedTextField(query, { query = it }, label = { Text("Search recipes or ingredients") }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -293,6 +310,9 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
                             pantry = api.pantry(); shopping = api.shopping(); movements = api.movements(); cooking = false
                         } }) { Text("Log cooked") } },
                         dismissButton = { TextButton(onClick = { cooking = false }) { Text("Cancel") } })
+                    var cost by remember(recipe.id, servings, recipe.revision) { mutableStateOf<CostEstimate?>(null) }
+                    TextButton(enabled = !busy && recipe.baseServings != null, onClick = { operate { cost = api.recipeCost(recipe.id, servings) } }) { Text("Estimate meal cost") }
+                    cost?.let { CostSummary(it) }
                     preview?.let { result ->
                         result.warnings.filterNot { it in recipe.warnings }.forEach { Text(it) }
                         Text("Missing list", style = MaterialTheme.typography.titleLarge)

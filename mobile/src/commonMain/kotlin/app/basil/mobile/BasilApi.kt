@@ -158,5 +158,14 @@ class BasilApi(private val base: String, private val store: DeviceStore? = null,
     fun imageHeaders(): coil3.network.NetworkHeaders = coil3.network.NetworkHeaders.Builder().apply {
         session?.let { set("Authorization", "Bearer ${it.token}"); set("X-Basil-Household", it.householdId) }
     }.build()
+    suspend fun recipeTextDraft(text: String): RecipeEditRequest = client.post("$base/v1/recipes/text-draft") { contentType(ContentType.Application.Json); timeout { requestTimeoutMillis = 120_000 }; setBody(TextScanRequest(text)) }.body()
+    suspend fun receiptDraft(text: String): ReceiptDraft = client.post("$base/v1/receipts/draft") { contentType(ContentType.Application.Json); setBody(TextScanRequest(text)) }.body()
+    suspend fun acceptReceipt(request: ReceiptRequest): Purchase = client.post("$base/v1/purchases") { contentType(ContentType.Application.Json); setBody(request) }.body()
+    suspend fun correctReceipt(id: String, request: ReceiptCorrection): Purchase = client.put("$base/v1/purchases/$id") { contentType(ContentType.Application.Json); setBody(request) }.body()
+    suspend fun purchases(): List<Purchase> = cached?.purchases ?: client.get("$base/v1/purchases").body()
+    suspend fun budget(month: String = ""): BudgetSummary = client.get("$base/v1/budget") { if (month.isNotBlank()) parameter("month", month) }.body()
+    suspend fun setBudget(request: BudgetSettings): BudgetSettings = client.put("$base/v1/budget/settings") { contentType(ContentType.Application.Json); setBody(request) }.body()
+    suspend fun recipeCost(id: String, servings: Int): CostEstimate = client.post("$base/v1/recipes/$id/cost") { contentType(ContentType.Application.Json); setBody(PreviewRequest(servings)) }.body()
+    suspend fun shoppingCost(): CostEstimate = client.get("$base/v1/shopping/cost").body()
     fun close() = client.close()
 }

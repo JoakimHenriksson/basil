@@ -134,6 +134,17 @@ fun Application.basil(
             post("/stock") { val request = call.receive<StockRequest>(); call.respond(withContext(Dispatchers.IO) { data(call).stock(request) }) }
             post("/stock/{id}/undo") { val request = call.receive<UndoStockRequest>(); call.respond(withContext(Dispatchers.IO) { data(call).undoStock(call.parameters["id"].orEmpty(), request) }) }
             post("/recipes/{id}/cook") { val request = call.receive<CookRequest>(); call.respond(withContext(Dispatchers.IO) { data(call).cook(call.parameters["id"].orEmpty(), request) }) }
+            get("/purchases") { call.respond(data(call).purchases()) }
+            post("/recipes/text-draft") { val request = call.receive<TextScanRequest>(); call.respond(withContext(Dispatchers.IO) { RecipeText.draft(request.text, extractor) }) }
+            post("/receipts/draft") { val request = call.receive<TextScanRequest>(); call.respond(Costs.draft(request.text)) }
+            post("/purchases") { val request = call.receive<ReceiptRequest>(); call.respond(withContext(Dispatchers.IO) { data(call).acceptReceipt(request) }) }
+            put("/purchases/{id}") { val request = call.receive<ReceiptCorrection>(); call.respond(withContext(Dispatchers.IO) { data(call).correctReceipt(call.parameters["id"].orEmpty(), request) }) }
+            get("/purchases/{id}/history") { call.respond(data(call).purchaseHistory(call.parameters["id"].orEmpty())) }
+            get("/budget/settings") { call.respond(data(call).budgetSettings()) }
+            put("/budget/settings") { val request = call.receive<BudgetSettings>(); call.respond(withContext(Dispatchers.IO) { data(call).setBudget(request) }) }
+            get("/budget") { call.respond(data(call).budget(call.request.queryParameters["month"] ?: java.time.YearMonth.now(java.time.ZoneId.of("Europe/Stockholm")).toString())) }
+            post("/recipes/{id}/cost") { val request = call.receive<PreviewRequest>(); call.respond(data(call).recipeCost(call.parameters["id"].orEmpty(), request.servings)) }
+            get("/shopping/cost") { call.respond(data(call).shoppingCost()) }
             get("/pantry") { call.respond(data(call).pantry()) }
             post("/pantry") { val request = call.receive<PantryRequest>(); call.respond(HttpStatusCode.Created, withContext(Dispatchers.IO) { data(call).add(request) }) }
             delete("/pantry/{id}") {

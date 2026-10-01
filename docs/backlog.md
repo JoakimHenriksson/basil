@@ -12,8 +12,11 @@ not production readiness.
    quantities, Undo, and cooking reconciliation.
 4. Household sharing and offline synchronization: basic local flow implemented. Identity, membership,
    durable storage, invitations, conflicts, caches, and queued operations.
-5. Costs and suggestions: next. Recipe estimates, receipt and recipe scans,
-   price learning, budgets, Gemini and supported Apple suggestions.
+5. Costs: basic local flow implemented. Reviewed receipt/photo/text scans,
+   price learning, stock linkage, corrections, refunds, monthly budgets, and
+   separate portion/package estimates.
+6. Pantry suggestions: next. Saved ready/close recipes, Gemini and supported
+   Apple Intelligence drafts, with shared validation and deterministic shortages.
 
 ## Verification gaps
 
@@ -44,3 +47,10 @@ restart/replay, independent shopping actions, conflicts, and cache clearing.
 Android recipe/shopping regression and two-session invitation/shared-recipe
 journeys pass. Production account identity, recovery, token lifecycle,
 PostgreSQL, iOS Keychain, and physical/multi-device QA remain release work.
+
+Costs verification: reconciled totals, duplicate receipts, multiple scan links,
+atomic stock/spending acceptance, price correction history, portion/package
+rounding, refunds, missing prices, and discount uncertainty pass backend checks.
+Android receipt review/budget/correction journey and real bundled OCR fixture
+pass. Headed recipe-text extraction passes. Real receipt formats, physical
+camera quality, Gemini general text extraction, and iOS Vision remain QA gaps.

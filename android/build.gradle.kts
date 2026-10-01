@@ -17,6 +17,7 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.9.3")
     androidTestImplementation(project(":contracts"))
     androidTestImplementation("io.ktor:ktor-client-core:3.0.3")
+    androidTestImplementation("com.google.mlkit:text-recognition:16.0.1")
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4:1.7.5")

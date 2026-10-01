@@ -8,4 +8,4 @@ import kotlinx.serialization.Serializable
 @Serializable data class HouseholdInvite(val id: String, val code: String, val expiresAt: String)
 @Serializable data class JoinHouseholdRequest(val code: String)
 @Serializable data class JoinedHousehold(val householdId: String)
-@Serializable data class HouseholdSnapshot(val version: String, val recipes: List<Recipe>, val pantry: List<PantryItem>, val shopping: ShoppingList, val products: List<Product>, val movements: List<StockMovement>)
+@Serializable data class HouseholdSnapshot(val version: String, val recipes: List<Recipe>, val pantry: List<PantryItem>, val shopping: ShoppingList, val products: List<Product>, val movements: List<StockMovement>, val purchases: List<Purchase> = emptyList(), val budget: BudgetSettings = BudgetSettings())

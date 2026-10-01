@@ -71,3 +71,16 @@ and non-owner members through `/household/invites/{id}` and `/household/members/
 when unchanged. Snapshots include recipes, stock, shopping, products and movements.
 Queued stock requests retain their operation IDs. Shopping check-off replays
 only against the same requirement; meaningful conflicts remain visible.
+
+## Financial operations
+
+[Costs.kt](src/commonMain/kotlin/app/basil/contracts/Costs.kt) uses integer minor
+units for supported two-decimal currencies and decimal strings for quantities.
+`POST /receipts/draft` extracts reviewed fields from OCR text; `POST /purchases`
+accepts reconciled receipt lines once. `PUT /purchases/{id}` corrects financial
+fields with `expectedRevision`, preserving stock links and prior revisions at
+`GET /purchases/{id}/history`. Those paths are under `/v1`.
+`GET/PUT /v1/budget/settings`, `GET /v1/budget?month=YYYY-MM`,
+`POST /v1/recipes/{id}/cost`, and `GET /v1/shopping/cost` expose budget and estimates.
+`POST /v1/recipes/text-draft` returns an editable recipe from recognized text.
+Household snapshots include current purchases and budget settings.

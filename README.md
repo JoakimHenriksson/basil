@@ -97,6 +97,29 @@ Android Add/Use/Undo is checked with a typed barcode; optical camera decoding
 requires physical-device QA. The Kotlin iOS camera adapter is unverified on Windows.
 Open Food Facts coverage for actual household products remains to be checked.
 
+## Receipts, meal costs and budgets
+
+Costs accepts a receipt photo through on-device text recognition, or pasted text.
+Review item prices, purchase date and the printed total before recording it.
+The item sum must match. Spending-only is the default; ingredient details can
+learn a price, explicitly add stock, or link one or more earlier barcode Adds.
+Links must match ingredient and total quantity, so a scanned purchase is counted
+once. Correct purchase changes prices/date with an audit and keeps stock effects.
+Refunds can be entered as negative spending lines without adding stock.
+
+Set a monthly grocery limit (SEK by default). The purchase date determines the
+budget month. Estimate meal cost on a recipe or whole packages in Shopping.
+Missing prices/quantities are shown; they are never invented. Unallocated receipt
+discounts record spending but don't teach verified product prices. Decimal cost
+calculations round to minor units with HALF_UP; package counts round upward.
+
+Recipe photos also use the native text reader. Review the extracted recipe in
+the editor before saving. With Gemini configured, general recipe text can be
+extracted. Otherwise Ingredients/Method (or Swedish) headings are supported.
+Android OCR reads a fixture receipt image; actual camera/photo quality and the
+iOS Vision adapter require device validation. No scanned photo is sent to Gemini;
+recipe text is sent only when you choose Extract scanned recipe.
+
 ## Gemini extraction
 
 Structured recipe data is used first. For other pages, the backend can use Gemini
@@ -147,8 +170,7 @@ Back up the complete household directory, including `households.json` and media.
 ## Current boundaries
 
 This is a local development prototype using an atomic JSON vault. Production identity,
-PostgreSQL household persistence, receipt and
-recipe-photo imports, budgets, Gemini meal suggestions, and Apple
+PostgreSQL household persistence, Gemini meal suggestions, and Apple
 Intelligence remain implementation work. Keep the development service local until production identity and hosting are ready.
 
 - [Product plan](docs/app-plan.md)
@@ -156,5 +178,5 @@ Intelligence remain implementation work. Keep the development service local unti
 - [Backend](backend/README.md), [Android](android/README.md), [iOS](ios/README.md)
 - [API contracts](contracts/README.md)
 
-The household slice lives in `feature/household-sync`, based on `feature/pantry-scanning`. The user owns integration into
+The costs slice lives in `feature/costs`, based on `feature/household-sync`. The user owns integration into
 `main`.
