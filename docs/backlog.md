@@ -10,9 +10,9 @@ not production readiness.
    allocate pantry stock once, combine shortages, manual items, and check-off.
 3. Pantry convenience: implemented and locally verified (camera QA pending). Remember products, barcode Add/Use, partial
    quantities, Undo, and cooking reconciliation.
-4. Household sharing and offline synchronization: next. Identity, membership,
+4. Household sharing and offline synchronization: basic local flow implemented. Identity, membership,
    durable storage, invitations, conflicts, caches, and queued operations.
-5. Costs and suggestions: pending. Recipe estimates, receipt and recipe scans,
+5. Costs and suggestions: next. Recipe estimates, receipt and recipe scans,
    price learning, budgets, Gemini and supported Apple suggestions.
 
 ## Verification gaps
@@ -36,3 +36,11 @@ depletion, partial/multiple-package Use, Undo, atomic insufficient-stock failure
 and explicit cooking reconciliation pass backend tests. Android typed-barcode
 Add/Use/Undo journey passes. Optical decoding, real product-data coverage, and
 iOS camera behavior remain unverified.
+
+Household verification: isolation across every food/media endpoint, expiring
+one-use invitations, owner-only membership changes, durable revocation, and
+complete legacy-vault adoption pass backend checks. Shared mobile tests cover
+restart/replay, independent shopping actions, conflicts, and cache clearing.
+Android recipe/shopping regression and two-session invitation/shared-recipe
+journeys pass. Production account identity, recovery, token lifecycle,
+PostgreSQL, iOS Keychain, and physical/multi-device QA remain release work.

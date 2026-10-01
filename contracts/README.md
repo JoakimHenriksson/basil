@@ -14,7 +14,8 @@ Current HTTP operations:
 - `GET /v1/pantry`, `POST /v1/pantry`, and `DELETE /v1/pantry/{id}`
 
 Domain and HTTP tests verify the shared payloads, scaling, and pantry shortages.
-This prototype API is local and unauthenticated. Household IDs, membership,
+The running prototype uses local device sessions and scoped households. Domain
+test fixtures can construct an unauthenticated application explicitly. Household IDs, membership,
 record versions, stock operation IDs, money, AI drafts, and synchronization
 contracts are added with their corresponding slices.
 
@@ -56,3 +57,17 @@ and recorded movements. Barcodes normalize to check-digit-validated GTIN-14 keys
 Operation IDs deduplicate identical retries. Negative balances are rejected.
 Open Food Facts lookup is a review draft, not an automatic inventory mutation.
 Product mappings cannot change dimensions while existing stock uses them.
+
+## Household sessions and synchronization
+
+[Households.kt](src/commonMain/kotlin/app/basil/contracts/Households.kt) defines
+local device sessions, membership and snapshots. `POST /session` creates a
+private household. Every `/v1` call requires a Bearer token and `X-Basil-Household`.
+Tokens are stored as hashes on the server. `GET /household` lists members;
+`POST /household/invites` creates a one-use invitation with a 24-hour expiry.
+`POST /households/join` accepts an invitation. Owners can delete invitations
+and non-owner members through `/household/invites/{id}` and `/household/members/{id}`.
+`GET /v1/sync?since={version}` returns one atomic household snapshot, or 204
+when unchanged. Snapshots include recipes, stock, shopping, products and movements.
+Queued stock requests retain their operation IDs. Shopping check-off replays
+only against the same requirement; meaningful conflicts remain visible.

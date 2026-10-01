@@ -17,7 +17,8 @@ Use JDK 17 and Android SDK 35. From this worktree:
 ```
 
 On Windows use `gradlew.bat`. The backend listens on `127.0.0.1:8787` and keeps
-its development vault in `backend/data/vault.json`. The debug Android app uses
+its household registry and vaults in `backend/data/households/`. The first
+device adopts the existing `backend/data/vault.json` if present. The debug Android app uses
 `10.0.2.2:8787`, the emulator's address for the host. Open the root project in
 Android Studio or install `android/build/outputs/apk/debug/android-debug.apk`.
 
@@ -120,17 +121,40 @@ Live WebView navigation is still unverified because the emulator rejects this
 host environment's HTTPS certificates. Real ICA recipe and photo preservation
 was checked through the backend. The iOS browser requires macOS validation.
 
+## Households and offline use
+
+The first connection creates a device session and private household. In Household,
+show members and create a one-use invitation for another device. The owner can
+revoke invitations and remove members. Food, shopping, stock changes, and retained
+photos are scoped to membership. Active apps check for updates every 30 seconds;
+Sync household also refreshes explicitly.
+
+Recipes, pantry, shopping, products and audit records are cached on the device.
+Known-product scans, shopping extras and check-off can be queued offline. Pending
+changes stay visible until accepted. Shopping replay merges independent extras
+and checks unchanged requirements; changed requirements remain conflicts.
+Stock balances stay authoritative until the queued action is accepted. Recipe
+editing, imports, unknown products, fresh calculations, and photos need a connection.
+Revocation clears the active cached household and pending actions upon reconnection.
+
+Android encrypts its device store with an Android Keystore key. iOS uses app-private
+file-protected storage; Keychain credential storage still needs release work and
+macOS validation. This is device identity for a local prototype. Managed login,
+account recovery, token lifecycle, PostgreSQL and production hosting remain work.
+Back up the complete household directory, including `households.json` and media.
+`BASIL_HOUSEHOLDS` overrides that directory for an isolated development instance.
+
 ## Current boundaries
 
-This is a local development prototype using an atomic JSON vault. Authentication,
-PostgreSQL household persistence, invitations, receipt and
-recipe-photo imports, budgets, offline synchronization, Gemini meal suggestions, and Apple
-Intelligence remain implementation work. Keep the unauthenticated service local.
+This is a local development prototype using an atomic JSON vault. Production identity,
+PostgreSQL household persistence, receipt and
+recipe-photo imports, budgets, Gemini meal suggestions, and Apple
+Intelligence remain implementation work. Keep the development service local until production identity and hosting are ready.
 
 - [Product plan](docs/app-plan.md)
 - [Worktree workflow](docs/development.md)
 - [Backend](backend/README.md), [Android](android/README.md), [iOS](ios/README.md)
 - [API contracts](contracts/README.md)
 
-The pantry slice lives in `feature/pantry-scanning`, based on `feature/shopping`. The user owns integration into
+The household slice lives in `feature/household-sync`, based on `feature/pantry-scanning`. The user owns integration into
 `main`.

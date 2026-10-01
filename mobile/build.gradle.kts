@@ -1,5 +1,6 @@
 plugins {
     kotlin("multiplatform")
+    kotlin("plugin.serialization")
     id("com.android.library")
     id("org.jetbrains.compose")
     kotlin("plugin.compose")
@@ -25,6 +26,11 @@ kotlin {
             implementation("io.ktor:ktor-client-content-negotiation:3.0.3")
             implementation("io.ktor:ktor-serialization-kotlinx-json:3.0.3")
         }
+        commonTest.dependencies {
+            implementation(kotlin("test"))
+            implementation("io.ktor:ktor-client-mock:3.0.3")
+        }
+        androidUnitTest.dependencies { implementation(kotlin("test-junit")) }
         androidMain.dependencies {
             implementation("io.ktor:ktor-client-okhttp:3.0.3")
             implementation("androidx.core:core-ktx:1.13.1")

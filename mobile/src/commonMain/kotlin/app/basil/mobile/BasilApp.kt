@@ -13,7 +13,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.layout.ContentScale
 import coil3.compose.AsyncImage
+import coil3.compose.LocalPlatformContext
+import coil3.request.ImageRequest
+import coil3.request.CachePolicy
+import coil3.network.httpHeaders
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.CancellationException
 
 private val basilColors = lightColorScheme(
@@ -22,10 +27,13 @@ private val basilColors = lightColorScheme(
     surface = Color(0xFFFFFDFA), onSurface = Color(0xFF252C23),
 )
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun BasilApp(baseUrl: String, sharedUrl: String = "") {
     MaterialTheme(colorScheme = basilColors) {
-        val api = remember(baseUrl) { BasilApi(baseUrl) }
+        val deviceStore = rememberDeviceStore()
+        val api = remember(baseUrl, deviceStore) { BasilApi(baseUrl, deviceStore) }
+        var syncTick by remember { mutableIntStateOf(0) }
         val scope = rememberCoroutineScope()
         var recipes by remember { mutableStateOf<List<Recipe>>(emptyList()) }
         var products by remember { mutableStateOf<List<Product>>(emptyList()) }
@@ -55,14 +63,23 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
         fun operate(block: suspend () -> Unit) {
             scope.launch {
                 busy = true; error = null
-                try { block() } catch (failure: Exception) { error = failure.message ?: "Couldn't connect to Basil. Please try again." }
+                try {
+                    block()
+                    (if (api.offline) api.cachedSnapshot() else api.refresh())?.let { snapshot -> recipes = snapshot.recipes; pantry = snapshot.pantry; shopping = snapshot.shopping; products = snapshot.products; movements = snapshot.movements }
+                    syncTick++
+                } catch (failure: Exception) {
+                    if (failure is ApiFailure && failure.status in listOf(401, 403)) {
+                        recipes = emptyList(); pantry = emptyList(); shopping = null; products = emptyList(); movements = emptyList(); selected = null; preview = null; browserSaved = null; productDraft = null
+                    }
+                    error = failure.message ?: "Couldn't connect to Basil. Please try again."
+                }
                 finally { busy = false }
             }
         }
         LaunchedEffect(sharedUrl) { if (sharedUrl.isNotBlank()) { url = sharedUrl; selected = null; tab = "Recipes" } }
         LaunchedEffect(api) {
             busy = true
-            try { recipes = api.recipes(); pantry = api.pantry(); shopping = api.shopping(); products = api.products(); movements = api.movements() }
+            try { api.refresh(); recipes = api.recipes(); pantry = api.pantry(); shopping = api.shopping(); products = api.products(); movements = api.movements() }
             catch (failure: Exception) { error = "Couldn't load your recipes. ${failure.message.orEmpty()}" }
             finally { busy = false }
         }
@@ -75,6 +92,23 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
             catch (cancelled: CancellationException) { throw cancelled }
             catch (failure: Exception) { error = failure.message ?: "Couldn't update the missing list." }
             finally { previewLoading = false }
+        }
+        LaunchedEffect(api) {
+            while (true) {
+                delay(30_000)
+                if (!busy && !api.offline) {
+                    try {
+                        api.refresh()?.let { snapshot -> recipes = snapshot.recipes; pantry = snapshot.pantry; shopping = snapshot.shopping; products = snapshot.products; movements = snapshot.movements }
+                        syncTick++
+                    } catch (cancelled: CancellationException) { throw cancelled }
+                    catch (failure: Exception) {
+                        if (failure is ApiFailure && failure.status in listOf(401, 403)) {
+                            recipes = emptyList(); pantry = emptyList(); shopping = null; products = emptyList(); movements = emptyList(); selected = null; preview = null; browserSaved = null; productDraft = null
+                            error = failure.message
+                        }
+                    }
+                }
+            }
         }
         DisposableEffect(api) { onDispose { api.close() } }
         val scrollState = rememberScrollState()
@@ -93,7 +127,7 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
                             browserError = null; browserSaved = null
                             scope.launch {
                                 busy = true
-                                try { browserSaved = api.capture(page); recipes = api.recipes() }
+                                try { browserSaved = api.capture(page); api.refresh(); recipes = api.recipes(); syncTick++ }
                                 catch (failure: Exception) { browserError = failure.message ?: "Couldn't save this recipe." }
                                 finally { busy = false }
                             }
@@ -105,11 +139,21 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
                 return@Surface
             }
             Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 22.dp).verticalScroll(scrollState), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                @Suppress("UNUSED_VARIABLE") val syncVersion = syncTick
                 Spacer(Modifier.height(10.dp))
                 Text("Basil", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 Text("What would you like to eat?", style = MaterialTheme.typography.titleMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    listOf("Recipes", "Pantry", "Shopping").forEach { name -> FilterChip(selected = tab == name, enabled = !busy, onClick = { tab = name; selected = null; editing = false; preview = null }, label = { Text(name) }) }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    listOf("Recipes", "Pantry", "Shopping", "Household").forEach { name -> FilterChip(selected = tab == name, enabled = !busy, onClick = { tab = name; selected = null; editing = false; preview = null }, label = { Text(name) }) }
+                }
+                TextButton(enabled = !busy, onClick = { operate { api.refresh() } }) { Text("Sync household") }
+                if (api.offline) Text("Offline · showing saved household data")
+                if (api.pending.isNotEmpty()) {
+                    Text("${api.pending.size} pending changes")
+                    api.pending.forEach { action ->
+                        Text(action.label + (action.error?.let { " · $it" } ?: " · waiting to sync"))
+                        TextButton(enabled = !busy, onClick = { api.discardPending(action.id); syncTick++ }) { Text("Discard pending change") }
+                    }
                 }
                 if (busy || previewLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
                 error?.let { message ->
@@ -126,6 +170,8 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
                             val updated = selected?.let { api.editRecipe(it.id, request) } ?: api.createRecipe(request)
                             recipes = api.recipes(); selected = updated; servings = updated.baseServings ?: 1; preview = null; editing = false
                         } }, onCancel = { editing = false })
+                } else if (tab == "Household") {
+                    HouseholdScreen(api, !busy, onAction = { action -> operate { action() } })
                 } else if (tab == "Shopping") {
                     ShoppingScreen(shopping, recipes, !busy,
                         onRefresh = { operate { shopping = api.shopping(); products = api.products(); movements = api.movements(); recipes = api.recipes() } },
@@ -203,7 +249,7 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
                         confirmButton = { TextButton(enabled = !busy, onClick = { operate { api.deleteRecipe(recipe.id); recipes = api.recipes(); selected = null; deleting = false; preview = null } }) { Text("Delete") } },
                         dismissButton = { TextButton(onClick = { deleting = false }) { Text("Cancel") } })
                     recipe.imagePath?.let { path ->
-                        AsyncImage(model = baseUrl.trimEnd('/') + path, contentDescription = recipe.title,
+                        AsyncImage(model = ImageRequest.Builder(LocalPlatformContext.current).data(baseUrl.trimEnd('/') + path).httpHeaders(api.imageHeaders()).memoryCachePolicy(CachePolicy.DISABLED).diskCachePolicy(CachePolicy.DISABLED).build(), contentDescription = recipe.title,
                             contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().height(220.dp))
                     }
                     if (recipe.sourceUrl.isNotBlank()) {

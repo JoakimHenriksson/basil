@@ -202,6 +202,20 @@ class Vault(private val file: Path) {
         persist(state.copy(pantry = Stock.apply(state.pantry, deltas), movements = state.movements + movement))
         return movement
     }
+    @Synchronized fun fork(file: Path): Vault {
+        require(!Files.exists(file)) { "The household vault already exists." }
+        val target = Vault(file)
+        target.persist(state)
+        if (Files.isDirectory(mediaDirectory)) {
+            Files.createDirectories(target.mediaDirectory)
+            Files.list(mediaDirectory).use { paths -> paths.filter { Files.isRegularFile(it) }.forEach { Files.copy(it, target.mediaDirectory.resolve(it.fileName)) } }
+        }
+        return target
+    }
+    @Synchronized fun snapshot(): HouseholdSnapshot {
+        val version = java.security.MessageDigest.getInstance("SHA-256").digest(json.encodeToString(state).toByteArray()).joinToString("") { "%02x".format(it) }
+        return HouseholdSnapshot(version, state.recipes, state.pantry, shopping(), state.products, state.movements)
+    }
     private fun persist(next: VaultState) {
         val validChecks = Shopping.list(next.shopping, next.pantry).items.filter { it.checked && !it.manual }.map { it.id }.toSet()
         val normalized = next.copy(shopping = next.shopping.copy(checks = next.shopping.checks.filterKeys { it in validChecks }))
