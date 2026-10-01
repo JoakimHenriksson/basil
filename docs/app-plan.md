@@ -13,7 +13,8 @@ and normalized recipes from recipe sites, scalable servings, missing lists,
 barcode Add and Use actions, recipe and receipt scanning for costs, household
 sharing, Gemini, and Apple Intelligence on supported iPhones with Gemini also
 available. Frameworks and interaction defaults below remain proposals. This
-document describes the planned product rather than an implemented application.
+document defines the intended product. See the [implementation backlog](backlog.md)
+for the current local functionality and remaining verification.
 
 ## The everyday flow
 

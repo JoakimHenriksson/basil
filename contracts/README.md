@@ -84,3 +84,13 @@ fields with `expectedRevision`, preserving stock links and prior revisions at
 `POST /v1/recipes/{id}/cost`, and `GET /v1/shopping/cost` expose budget and estimates.
 `POST /v1/recipes/text-draft` returns an editable recipe from recognized text.
 Household snapshots include current purchases and budget settings.
+
+## Suggestions
+
+[Suggestions.kt](src/commonMain/kotlin/app/basil/contracts/Suggestions.kt)
+defines shared editable draft validation and pantry context.
+`GET /v1/suggestions/saved?servings=N` ranks saved recipes using deterministic
+previews. `POST /v1/suggestions/gemini` returns a validated draft for explicit
+review, with bounded requests and a household cooldown. Missing configuration
+returns 503 while saved matching remains available. Apple returns the same
+`GeneratedRecipeDraft` locally; no provider directly mutates household records.

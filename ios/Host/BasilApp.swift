@@ -8,6 +8,9 @@ struct BasilHost: App {
 }
 
 struct KotlinView: UIViewControllerRepresentable {
-    func makeUIViewController(context: Context) -> UIViewController { MainViewControllerKt.MainViewController() }
+    func makeUIViewController(context: Context) -> UIViewController {
+        AppleInferenceKt.installAppleDraftProvider(provider: AppleModelAdapter())
+        return MainViewControllerKt.MainViewController()
+    }
     func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
 }

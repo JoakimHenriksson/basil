@@ -24,8 +24,16 @@ Tests cover structured and blog imports, fractions, unknown units, stock
 allocation, persistence, private-address rejection, and the HTTP recipe flow.
 
 See [API contracts](../contracts/README.md) and the [product plan](../docs/app-plan.md).
-This slice has no authentication or shared-household persistence. PostgreSQL,
-migrations, identities, and the remaining features are future implementation.
+The running service uses scoped local device sessions and a separate vault per
+household. `POST /session` returns credentials; food requests require a Bearer
+token and `X-Basil-Household`. Tests can instantiate an isolated unauthenticated
+fixture. `BASIL_HOUSEHOLDS` selects the registry/vault directory; the first private
+household copies the complete legacy `BASIL_DATA` vault and retained photos.
+
+Shopping, audited stock operations, receipts, prices, budgets and saved/AI
+suggestions are implemented. Production managed identity, token lifecycle,
+PostgreSQL/migrations and release persistence remain work. See the
+[implementation backlog](../docs/backlog.md).
 
 ## Browser captures and photos
 

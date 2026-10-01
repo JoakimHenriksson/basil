@@ -167,5 +167,7 @@ class BasilApi(private val base: String, private val store: DeviceStore? = null,
     suspend fun setBudget(request: BudgetSettings): BudgetSettings = client.put("$base/v1/budget/settings") { contentType(ContentType.Application.Json); setBody(request) }.body()
     suspend fun recipeCost(id: String, servings: Int): CostEstimate = client.post("$base/v1/recipes/$id/cost") { contentType(ContentType.Application.Json); setBody(PreviewRequest(servings)) }.body()
     suspend fun shoppingCost(): CostEstimate = client.get("$base/v1/shopping/cost").body()
+    suspend fun savedSuggestions(servings: Int): List<MealMatch> = client.get("$base/v1/suggestions/saved") { parameter("servings", servings) }.body()
+    suspend fun geminiIdea(request: MealIdeaRequest): RecipeEditRequest = client.post("$base/v1/suggestions/gemini") { contentType(ContentType.Application.Json); timeout { requestTimeoutMillis = 60_000 }; setBody(request) }.body()
     fun close() = client.close()
 }

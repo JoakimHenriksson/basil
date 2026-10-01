@@ -20,14 +20,14 @@ import platform.darwin.NSObject
                 picker.dismissViewControllerAnimated(true, null)
                 scope.launch {
                     try {
-                        val cgImage = requireNotNull(image?.CGImage)
                         val request = VNRecognizeTextRequest()
                         request.recognitionLevel = VNRequestTextRecognitionLevelAccurate
                         request.automaticallyDetectsLanguage = true
                         val value = withContext(Dispatchers.Default) {
+                            val cgImage = requireNotNull(image?.CGImage)
                             val handler = VNImageRequestHandler(cgImage = cgImage, options = emptyMap<Any?, Any>())
                             check(handler.performRequests(listOf(request), error = null))
-                            request.results?.filterIsInstance<VNRecognizedTextObservation>()?.mapNotNull { it.topCandidates(1uL).firstOrNull()?.string }?.joinToString("\n").orEmpty()
+                            request.results?.filterIsInstance<VNRecognizedTextObservation>()?.mapNotNull { it.topCandidates(1uL).filterIsInstance<VNRecognizedText>().firstOrNull()?.string }?.joinToString("\n").orEmpty()
                         }
                         text(value)
                     } catch (_: Exception) { error("Couldn't read the photo. Try a sharper image or paste the text.") }

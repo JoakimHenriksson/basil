@@ -1,6 +1,6 @@
 package app.basil.backend
 
-import app.basil.contracts.Recipe
+import app.basil.contracts.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
 import okhttp3.OkHttpClient
@@ -64,6 +64,7 @@ class GeminiRecipeExtractor(
         }
         fun validate(source: String, text: String): Recipe {
             val draft = Json.decodeFromString<ExtractedRecipe>(text)
+            validateRecipeDraft(RecipeEditRequest(draft.title, draft.baseServings, draft.ingredients, draft.instructions))
             require(draft.title.isNotBlank() && draft.title.length <= 250 && draft.ingredients.size in 1..200 && draft.instructions.size in 1..200) { "No complete recipe was found in the page." }
             require((draft.ingredients + draft.instructions).all { it.isNotBlank() && it.length <= 10_000 }) { "The extracted recipe contains invalid text." }
             require(draft.baseServings == null || draft.baseServings in 1..1000) { "The extracted yield needs review." }

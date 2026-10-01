@@ -2,12 +2,13 @@
 
 A Kotlin app for keeping recipes, choosing servings, and buying what is missing.
 
-The first working slice imports recipe pages, preserves the content locally,
-scales ingredients, and compares them with a simple pantry. Its built-in browser
-captures the page you are viewing and saves a local copy of the recipe photo. Android and iOS
-share Kotlin Multiplatform application code and a Compose Multiplatform UI.
+The local prototype preserves and edits recipes, combines shopping requirements,
+tracks pantry Add/Use and cooking, shares household records, queues selected
+changes offline, records receipt spending, estimates meal/package costs, and
+finds ready or almost-ready recipes. Android and iOS share Kotlin application
+code and a Compose UI. Android is locally verified; iOS needs macOS validation.
 
-## Run the first slice
+## Run the local app
 
 Use JDK 17 and Android SDK 35. From this worktree:
 
@@ -120,6 +121,25 @@ Android OCR reads a fixture receipt image; actual camera/photo quality and the
 iOS Vision adapter require device validation. No scanned photo is sent to Gemini;
 recipe text is sent only when you choose Extract scanned recipe.
 
+## Ideas from your pantry
+
+Ideas ranks saved recipes as Ready to cook, Almost ready, Needs ingredients or
+Check amounts, using deterministic Kotlin shortages. Choose people to feed and
+open a matching recipe at those servings. This works without an AI provider.
+
+Ask Gemini explicitly sends up to 40 pantry lots and preferences to the backend
+provider. Requests are bounded and household requests have a 30-second cooldown.
+Ask Apple Intelligence uses the supported iOS device model, with runtime checks
+for OS, device eligibility, language, settings and model readiness. An unavailable
+or failed Apple model does not automatically send anything to Gemini.
+
+Both providers open an editable draft; shared Kotlin validation runs before
+review and again on save. Neither provider can alter stock, record spending or
+supply verified prices. Core shortages and financial calculations stay deterministic.
+Gemini has fake transport tests and no live-key verification. Apple's Swift-only
+Foundation Models API has a small native adapter; application rules and UI remain
+Kotlin. The adapter requires macOS/Xcode compilation and supported-device QA.
+
 ## Gemini extraction
 
 Structured recipe data is used first. For other pages, the backend can use Gemini
@@ -170,13 +190,14 @@ Back up the complete household directory, including `households.json` and media.
 ## Current boundaries
 
 This is a local development prototype using an atomic JSON vault. Production identity,
-PostgreSQL household persistence, Gemini meal suggestions, and Apple
-Intelligence remain implementation work. Keep the development service local until production identity and hosting are ready.
+PostgreSQL household persistence, iOS validation, and live provider checks remain
+release work. The implemented local flow is ready for product reconciliation.
+Keep the development service local until production identity and hosting are ready.
 
 - [Product plan](docs/app-plan.md)
 - [Worktree workflow](docs/development.md)
 - [Backend](backend/README.md), [Android](android/README.md), [iOS](ios/README.md)
 - [API contracts](contracts/README.md)
 
-The costs slice lives in `feature/costs`, based on `feature/household-sync`. The user owns integration into
+The basic-functionality checkpoint lives in `feature/pantry-suggestions`, based on `feature/costs`. The user owns integration into
 `main`.

@@ -147,7 +147,7 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
                 Text("Basil", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 Text("What would you like to eat?", style = MaterialTheme.typography.titleMedium)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    listOf("Recipes", "Pantry", "Shopping", "Costs", "Household").forEach { name -> FilterChip(selected = tab == name, enabled = !busy, onClick = { tab = name; selected = null; editing = false; preview = null }, label = { Text(name) }) }
+                    listOf("Recipes", "Ideas", "Pantry", "Shopping", "Costs", "Household").forEach { name -> FilterChip(selected = tab == name, enabled = !busy, onClick = { tab = name; selected = null; editing = false; preview = null }, label = { Text(name) }) }
                 }
                 TextButton(enabled = !busy, onClick = { operate { api.refresh() } }) { Text("Sync household") }
                 if (api.offline) Text("Offline · showing saved household data")
@@ -173,6 +173,13 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
                             val updated = selected?.let { api.editRecipe(it.id, request) } ?: api.createRecipe(request)
                             recipes = api.recipes(); selected = updated; servings = updated.baseServings ?: 1; preview = null; editing = false; scannedDraft = null; scannedRecipeText = ""
                         } }, onCancel = { editing = false; scannedDraft = null })
+                } else if (tab == "Ideas") {
+                    SuggestionsScreen(api, pantry, !busy, onAction = { action -> operate { action() } },
+                        onChoose = { id, count -> recipes.find { it.id == id }?.let { selected = it; servings = count; tab = "Recipes"; preview = null } },
+                        onDraft = { draft ->
+                            scannedDraft = Recipe("suggested-draft", draft.title, "", draft.baseServings, draft.baseServings?.toString().orEmpty(), draft.ingredientLines.map { Ingredient(it, it, needsReview = true) }, draft.instructions, "", notes = draft.notes)
+                            selected = null; editing = true; tab = "Recipes"
+                        })
                 } else if (tab == "Costs") {
                     CostsScreen(api, !busy, products, movements, onAction = { action -> operate { action() } }, onError = { error = it })
                 } else if (tab == "Household") {

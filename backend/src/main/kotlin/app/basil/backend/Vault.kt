@@ -45,11 +45,7 @@ class Vault(private val file: Path) {
         return save(validateEdit(request, blank))
     }
     private fun validateEdit(request: RecipeEditRequest, old: Recipe): Recipe {
-        require(request.title.isNotBlank() && request.title.length <= 250) { "Enter a recipe title of up to 250 characters." }
-        require(request.baseServings == null || request.baseServings in 1..1000) { "Choose between 1 and 1000 base servings." }
-        require(request.ingredientLines.size in 1..200 && request.ingredientLines.all { it.isNotBlank() && it.length <= 1000 }) { "Enter at least one ingredient, with one ingredient per line." }
-        require(request.instructions.size in 1..200 && request.instructions.all { it.isNotBlank() && it.length <= 10_000 }) { "Enter at least one cooking step." }
-        require(request.notes.length <= 20_000) { "Recipe notes are too long." }
+        validateRecipeDraft(request)
         val ingredients = request.ingredientLines.map(Ingredients::parse)
         val warnings = buildList {
             if (request.baseServings == null) add("The recipe yield needs review before scaling.")

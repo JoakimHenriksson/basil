@@ -32,9 +32,12 @@ fun Application.basil(
     extractor: RecipeExtractor? = GeminiRecipeExtractor.configured(),
     products: ProductLookup = OpenFoodFactsLookup(),
     households: Households? = null,
+    mealGenerator: MealGenerator? = GeminiMealGenerator.configured(),
 ) {
     install(ContentNegotiation) { json() }
     install(StatusPages) {
+        exception<ProviderUnavailable> { call, error -> call.respond(HttpStatusCode.ServiceUnavailable, ApiError("provider_unavailable", error.message!!)) }
+        exception<SuggestionCooldown> { call, error -> call.respond(HttpStatusCode.TooManyRequests, ApiError("suggestion_cooldown", error.message!!)) }
         exception<AccessDenied> { call, error -> call.respond(HttpStatusCode.fromValue(error.status), ApiError("access_denied", error.message!!)) }
         exception<ShoppingConflict> { call, error -> call.respond(HttpStatusCode.Conflict, ApiError("shopping_changed", error.message!!)) }
         exception<RecipeConflict> { call, error -> call.respond(HttpStatusCode.Conflict, ApiError("recipe_changed", error.message!!)) }
@@ -51,6 +54,7 @@ fun Application.basil(
     fun data(call: ApplicationCall): Vault = if (households == null) vault else call.attributes[requestVault]
     fun photos(call: ApplicationCall) = if (households == null) images else RecipeImages(data(call).mediaDirectory)
     fun capture(call: ApplicationCall) = RecipeCapture(data(call), photos(call), extractor)
+    val ideaRequests = java.util.concurrent.ConcurrentHashMap<Vault, Long>()
     routing {
         get("/health") { call.respond(mapOf("status" to "ok")) }
         if (households != null) {
@@ -134,6 +138,15 @@ fun Application.basil(
             post("/stock") { val request = call.receive<StockRequest>(); call.respond(withContext(Dispatchers.IO) { data(call).stock(request) }) }
             post("/stock/{id}/undo") { val request = call.receive<UndoStockRequest>(); call.respond(withContext(Dispatchers.IO) { data(call).undoStock(call.parameters["id"].orEmpty(), request) }) }
             post("/recipes/{id}/cook") { val request = call.receive<CookRequest>(); call.respond(withContext(Dispatchers.IO) { data(call).cook(call.parameters["id"].orEmpty(), request) }) }
+            get("/suggestions/saved") { call.respond(Suggestions.saved(data(call).recipes(), data(call).pantry(), call.request.queryParameters["servings"]?.toIntOrNull() ?: 2)) }
+            post("/suggestions/gemini") {
+                val request = call.receive<MealIdeaRequest>(); val generator = mealGenerator ?: throw ProviderUnavailable()
+                mealIdeaPrompt(emptyList(), request)
+                val vault = data(call); val now = System.currentTimeMillis()
+                ideaRequests.compute(vault) { _, previous -> if (previous != null && now - previous < 30_000) throw SuggestionCooldown(); now }
+                if (ideaRequests.size > 256) ideaRequests.entries.removeIf { now - it.value > 30_000 }
+                call.respond(withContext(Dispatchers.IO) { generator.generate(vault.pantry(), request).reviewed("Gemini") })
+            }
             get("/purchases") { call.respond(data(call).purchases()) }
             post("/recipes/text-draft") { val request = call.receive<TextScanRequest>(); call.respond(withContext(Dispatchers.IO) { RecipeText.draft(request.text, extractor) }) }
             post("/receipts/draft") { val request = call.receive<TextScanRequest>(); call.respond(Costs.draft(request.text)) }

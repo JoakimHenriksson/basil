@@ -17,6 +17,11 @@ Basil follows the worktree conventions in `~/src/cogitatibus/AGENTS.md` and
     recipe-foundation/     First Kotlin implementation worktree
     recipe-browser/        Browser capture, photos, and Gemini extraction
     recipe-library/        Editing, search, favourites, and export
+    shopping/              Combined requirements and selected revisions
+    pantry-scanning/       Product barcodes and stock operations
+    household-sync/        Scoped sharing and persisted pending actions
+    costs/                 OCR, receipts, prices, and budgets
+    pantry-suggestions/    Basic-functionality reconciliation checkpoint
     <name>/                Future feature worktrees
   bugfix/
     <name>/                Created when a bug fix needs a worktree
@@ -121,3 +126,10 @@ Android README for the isolated backend setup and device commands.
 The library slice retains edits as revisions, rejects stale saves, and exports
 current recipes with photos. Its Android journey covers creation, editing,
 favourites, and note search. See [the implementation backlog](backlog.md).
+
+The basic-functionality task branches form a local chain from recipe-library
+through shopping, pantry-scanning, household-sync, costs, and pantry-suggestions.
+The latest branch contains the cumulative prototype. Main is still owned by the
+user. Run `:backend:test :mobile:testDebugUnitTest :android:assembleDebug` for the
+current backend/shared/Android checks; physical devices and macOS remain required
+for the recorded release gaps.

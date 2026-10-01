@@ -16,8 +16,12 @@ connects to the host backend through `http://10.0.2.2:8787` on an emulator.
 Override the address with `-Pbasil.apiUrl=https://your-development-service`
 when building. Local HTTP is enabled only in the debug manifest.
 
-The build is verified on Windows. Barcode scanning, device share-flow QA,
-offline storage and queued changes, AI, and budgets are not implemented yet.
+The build is verified on Windows. Recipe editing/search/favourites, combined
+shopping, typed-barcode Add/Use/Undo, household invitations, offline action
+queues, receipt review/correction, budgets and saved pantry matches have local
+verification. Bundled ML Kit OCR reads a receipt-image fixture. ZXing optical
+camera behavior, real device sharing, real receipt formats and live Gemini need
+QA. Apple inference is specific to iOS.
 See the [product plan](../docs/app-plan.md).
 
 The built-in WebView supports search, HTTPS navigation, Back/Forward, and
