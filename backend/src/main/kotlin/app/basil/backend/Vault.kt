@@ -9,7 +9,7 @@ import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.util.UUID
 
-@Serializable private data class VaultState(val recipes: List<Recipe> = emptyList(), val pantry: List<PantryItem> = emptyList(), val recipeHistory: List<Recipe> = emptyList(), val shopping: ShoppingState = ShoppingState())
+@Serializable private data class VaultState(val recipes: List<Recipe> = emptyList(), val pantry: List<PantryItem> = emptyList(), val recipeHistory: List<Recipe> = emptyList(), val shopping: ShoppingState = ShoppingState(), val products: List<Product> = emptyList(), val movements: List<StockMovement> = emptyList())
 
 /** Local prototype storage. Production household persistence is a later slice. */
 class Vault(private val file: Path) {
@@ -133,6 +133,74 @@ class Vault(private val file: Path) {
     @Synchronized fun removeShoppingItem(id: String, version: String): ShoppingList {
         checkShoppingVersion(version)
         return saveShopping(state.shopping.copy(manual = state.shopping.manual.filterNot { it.id == id }))
+    }
+    @Synchronized fun products(): List<Product> = state.products
+    @Synchronized fun product(barcode: String): Product? = state.products.find { it.barcode == Stock.barcode(barcode) }
+    @Synchronized fun rememberProduct(product: Product): Product {
+        val barcode = Stock.barcode(product.barcode)
+        require(product.name.isNotBlank() && product.name.length <= 250 && product.ingredient.isNotBlank() && product.ingredient.length <= 150) { "Enter the product and ingredient names." }
+        require(product.unit in setOf("g", "ml", "piece")) { "Choose grams, millilitres or pieces." }
+        val saved = product.copy(barcode = barcode, name = product.name.trim(), ingredient = Ingredients.canonical(product.ingredient, product.unit), packageAmount = Ingredients.display(Stock.positive(product.packageAmount)))
+        require(state.pantry.none { it.barcode == barcode && (it.name != saved.ingredient || it.unit != saved.unit) }) { "Use or correct existing stock before changing this product's ingredient or unit." }
+        persist(state.copy(products = state.products.filterNot { it.barcode == barcode } + saved))
+        return saved
+    }
+    @Synchronized fun movements(): List<StockMovement> = state.movements
+    private fun validOperation(id: String) { require(id.matches(Regex("[a-zA-Z0-9-]{1,80}"))) { "Invalid operation ID." } }
+    @Synchronized fun stock(request: StockRequest): StockMovement {
+        validOperation(request.id)
+        val barcode = Stock.barcode(request.barcode)
+        require(request.kind in setOf("add", "use")) { "Choose Add or Use." }
+        state.movements.find { it.id == request.id }?.let {
+            require(it.kind == request.kind && it.barcode == barcode && (request.amount == null || it.deltas.sumOf { d -> Ingredients.number(d.amount).abs() }.compareTo(Stock.positive(requireNotNull(request.amount))) == 0)) { "Operation ID already used." }
+            return it
+        }
+        val product = requireNotNull(product(barcode)) { "Remember this product first." }
+        val amount = request.amount?.let(Stock::positive) ?: if (request.kind == "add") Ingredients.number(product.packageAmount)
+            else state.pantry.firstOrNull { it.barcode == barcode }?.amount?.let(Ingredients::number)?.min(Ingredients.number(product.packageAmount))
+                ?: throw IllegalArgumentException("This product isn't in your pantry.")
+        val deltas = if (request.kind == "add") {
+            val lot = PantryItem(UUID.randomUUID().toString(), product.ingredient, "0", product.unit, barcode)
+            listOf(StockDelta(lot, Ingredients.display(amount)))
+        } else Stock.consume(state.pantry, product.ingredient, product.unit, amount, barcode)
+        val movement = StockMovement(request.id, request.kind, java.time.Instant.now().toString(), deltas, barcode)
+        persist(state.copy(pantry = Stock.apply(state.pantry, deltas), movements = state.movements + movement))
+        return movement
+    }
+    @Synchronized fun undoStock(targetId: String, request: UndoStockRequest): StockMovement {
+        validOperation(request.id)
+        state.movements.find { it.id == request.id }?.let { require(it.undoOf == targetId) { "Operation ID already used." }; return it }
+        val target = requireNotNull(state.movements.find { it.id == targetId }) { "That operation wasn't found." }
+        require(target.kind != "undo") { "Use Add or Use to make a new correction." }
+        require(state.movements.none { it.undoOf == targetId }) { "This operation was already undone." }
+        require(state.movements.none { targetId in it.reconciledUseIds && state.movements.none { undo -> undo.undoOf == it.id } }) { "Undo the linked cooking log first." }
+        val deltas = target.deltas.map { it.copy(amount = Ingredients.display(-Ingredients.number(it.amount))) }
+        val movement = StockMovement(request.id, "undo", java.time.Instant.now().toString(), deltas, undoOf = targetId)
+        persist(state.copy(pantry = Stock.apply(state.pantry, deltas), movements = state.movements + movement))
+        return movement
+    }
+    @Synchronized fun cook(id: String, request: CookRequest): StockMovement {
+        validOperation(request.id)
+        state.movements.find { it.id == request.id }?.let {
+            require(it.kind == "cook" && it.recipeId == id && it.servings == request.servings && it.reconciledUseIds == request.reconciledUseIds) { "Operation ID already used." }
+            return it
+        }
+        val recipe = requireNotNull(recipe(id)) { "That recipe wasn't found." }
+        if (recipe.revision != request.recipeRevision) throw RecipeConflict()
+        val requirements = Ingredients.preview(recipe, request.servings, emptyList())
+        require(requirements.ingredients.none { !it.optional && (it.needsReview || it.amount == null) }) { "Review all required ingredient amounts before logging this meal." }
+        require(request.reconciledUseIds.distinct().size == request.reconciledUseIds.size) { "Choose each Use scan once." }
+        val linked = request.reconciledUseIds.map { useId ->
+            val movement = requireNotNull(state.movements.find { it.id == useId && it.kind == "use" }) { "Select a recorded Use scan." }
+            require(state.movements.none { it.undoOf == useId || (useId in it.reconciledUseIds && state.movements.none { undo -> undo.undoOf == it.id }) }) { "That Use scan was already reconciled or undone." }
+            movement
+        }.flatMap { it.deltas }.groupBy { it.lot.name to it.lot.unit }.mapValues { (_, values) -> values.sumOf { -Ingredients.number(it.amount) } }.toMutableMap()
+        val needed = requirements.ingredients.filterNot { it.optional }.groupBy { it.name to it.unit }.mapValues { (_, values) -> values.sumOf { Ingredients.number(requireNotNull(it.maxAmount ?: it.amount)) } }
+        require(linked.all { (key, amount) -> key in needed && amount <= needed.getValue(key) }) { "Those Use scans exceed or don't match the meal's ingredients. Review your selection." }
+        val deltas = needed.flatMap { (key, quantity) -> Stock.consume(state.pantry, key.first, key.second, quantity - (linked[key] ?: java.math.BigDecimal.ZERO)) }
+        val movement = StockMovement(request.id, "cook", java.time.Instant.now().toString(), deltas, recipeId = id, servings = request.servings, reconciledUseIds = request.reconciledUseIds)
+        persist(state.copy(pantry = Stock.apply(state.pantry, deltas), movements = state.movements + movement))
+        return movement
     }
     private fun persist(next: VaultState) {
         val validChecks = Shopping.list(next.shopping, next.pantry).items.filter { it.checked && !it.manual }.map { it.id }.toSet()

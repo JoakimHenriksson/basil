@@ -47,5 +47,12 @@ class BasilApi(private val base: String) {
     suspend fun manualShopping(request: ManualShoppingRequest): ShoppingList = client.post("$base/v1/shopping/items") { contentType(ContentType.Application.Json); setBody(request) }.body()
     suspend fun checkShopping(id: String, request: CheckShoppingRequest): ShoppingList = client.put("$base/v1/shopping/items/$id") { contentType(ContentType.Application.Json); setBody(request) }.body()
     suspend fun removeShopping(id: String, version: String): ShoppingList = client.delete("$base/v1/shopping/items/$id") { contentType(ContentType.Application.Json); setBody(ShoppingVersionRequest(version)) }.body()
+    suspend fun products(): List<Product> = client.get("$base/v1/products").body()
+    suspend fun productDraft(barcode: String): ProductDraft = client.get("$base/v1/products/$barcode").body()
+    suspend fun rememberProduct(product: Product): Product = client.put("$base/v1/products/${product.barcode}") { contentType(ContentType.Application.Json); setBody(product) }.body()
+    suspend fun movements(): List<StockMovement> = client.get("$base/v1/stock/movements").body()
+    suspend fun stock(request: StockRequest): StockMovement = client.post("$base/v1/stock") { contentType(ContentType.Application.Json); setBody(request) }.body()
+    suspend fun undoStock(id: String, operationId: String): StockMovement = client.post("$base/v1/stock/$id/undo") { contentType(ContentType.Application.Json); setBody(UndoStockRequest(operationId)) }.body()
+    suspend fun cook(id: String, request: CookRequest): StockMovement = client.post("$base/v1/recipes/$id/cook") { contentType(ContentType.Application.Json); setBody(request) }.body()
     fun close() = client.close()
 }

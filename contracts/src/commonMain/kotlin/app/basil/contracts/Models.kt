@@ -35,7 +35,7 @@ data class Recipe(
 @Serializable data class PreviewRequest(val servings: Int)
 @Serializable data class YieldRequest(val servings: Int)
 @Serializable data class PantryRequest(val name: String, val amount: String, val unit: String)
-@Serializable data class PantryItem(val id: String, val name: String, val amount: String, val unit: String)
+@Serializable data class PantryItem(val id: String, val name: String, val amount: String, val unit: String, val barcode: String? = null)
 @Serializable data class MissingItem(val name: String, val amount: String?, val unit: String, val needsReview: Boolean = false)
 @Serializable data class RecipePreview(
     val servings: Int,

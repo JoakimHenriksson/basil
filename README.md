@@ -79,6 +79,23 @@ Checking off an item does not add stock. Record the purchase in Pantry.
 Refresh after another client changes the list; stale writes are rejected.
 Offline shopping is part of the later synchronization slice.
 
+## Pantry Add and Use
+
+In Pantry choose Add or Use, then scan an EAN/UPC barcode or type it. Remembered
+products apply one package immediately; Use defaults to one package or the first
+tracked remainder. Enter a partial amount before scanning when needed. New
+products use an Open Food Facts draft when available; confirm the ingredient
+and package amount once. A 425 g tomato tin then becomes 425 g crushed tomatoes.
+Recent changes offer Undo. Undo refuses to remove stock already used later.
+
+Log cooked meal consumes measured recipe requirements. Explicitly select any
+Use records already belonging to this meal; they count once. Similar amounts
+are never silently assumed to be the same use. Undo the cooking log before a
+linked scan. Unknown required quantities need review before consumption.
+Android Add/Use/Undo is checked with a typed barcode; optical camera decoding
+requires physical-device QA. The Kotlin iOS camera adapter is unverified on Windows.
+Open Food Facts coverage for actual household products remains to be checked.
+
 ## Gemini extraction
 
 Structured recipe data is used first. For other pages, the backend can use Gemini
@@ -106,7 +123,7 @@ was checked through the backend. The iOS browser requires macOS validation.
 ## Current boundaries
 
 This is a local development prototype using an atomic JSON vault. Authentication,
-PostgreSQL household persistence, invitations, barcode scanning, receipt and
+PostgreSQL household persistence, invitations, receipt and
 recipe-photo imports, budgets, offline synchronization, Gemini meal suggestions, and Apple
 Intelligence remain implementation work. Keep the unauthenticated service local.
 
@@ -115,5 +132,5 @@ Intelligence remain implementation work. Keep the unauthenticated service local.
 - [Backend](backend/README.md), [Android](android/README.md), [iOS](ios/README.md)
 - [API contracts](contracts/README.md)
 
-The shopping slice lives in `feature/shopping`, based on `feature/recipe-library`. The user owns integration into
+The pantry slice lives in `feature/pantry-scanning`, based on `feature/shopping`. The user owns integration into
 `main`.

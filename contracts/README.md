@@ -41,3 +41,18 @@ returns HTTP 409. Create requests include client-generated IDs; identical retrie
 do not duplicate meals or manual items. Recipe edits use `expectedRevision`.
 No shopping operation mutates pantry stock. Selected snapshots survive library
 edits/deletion; removing a meal explicitly releases its shopping requirements.
+
+## Products and stock
+
+[Pantry.kt](src/commonMain/kotlin/app/basil/contracts/Pantry.kt) defines products
+and recorded movements. Barcodes normalize to check-digit-validated GTIN-14 keys.
+
+- `GET /v1/products`, `GET /v1/products/{barcode}` (lookup draft)
+- `PUT /v1/products/{barcode}` confirms ingredient/package mapping.
+- `POST /v1/stock` records Add or Use; `GET /v1/stock/movements` lists the audit.
+- `POST /v1/stock/{id}/undo` records a compensating change.
+- `POST /v1/recipes/{id}/cook` logs requirements with explicitly reconciled Use IDs.
+
+Operation IDs deduplicate identical retries. Negative balances are rejected.
+Open Food Facts lookup is a review draft, not an automatic inventory mutation.
+Product mappings cannot change dimensions while existing stock uses them.

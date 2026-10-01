@@ -28,6 +28,8 @@ kotlin {
         androidMain.dependencies {
             implementation("io.ktor:ktor-client-okhttp:3.0.3")
             implementation("androidx.core:core-ktx:1.13.1")
+            implementation("androidx.activity:activity-compose:1.9.3")
+            implementation("com.journeyapps:zxing-android-embedded:4.3.0")
         }
         if (System.getProperty("os.name").startsWith("Mac")) {
             iosMain.dependencies { implementation("io.ktor:ktor-client-darwin:3.0.3") }

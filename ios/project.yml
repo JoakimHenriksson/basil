@@ -13,6 +13,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: app.basil.ios
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: Basil
+        INFOPLIST_KEY_NSCameraUsageDescription: Scan grocery barcodes to add and use pantry ingredients.
         INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking: YES
         KOTLIN_TARGET: iosSimulatorArm64
         FRAMEWORK_SEARCH_PATHS: "$(inherited) $(SRCROOT)/../mobile/build/bin/$(KOTLIN_TARGET)/debugFramework"

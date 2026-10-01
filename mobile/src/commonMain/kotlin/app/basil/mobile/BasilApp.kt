@@ -28,6 +28,11 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
         val api = remember(baseUrl) { BasilApi(baseUrl) }
         val scope = rememberCoroutineScope()
         var recipes by remember { mutableStateOf<List<Recipe>>(emptyList()) }
+        var products by remember { mutableStateOf<List<Product>>(emptyList()) }
+        var movements by remember { mutableStateOf<List<StockMovement>>(emptyList()) }
+        var productDraft by remember { mutableStateOf<ProductDraft?>(null) }
+        var cooking by remember { mutableStateOf(false) }
+        var reconciledUses by remember { mutableStateOf<Set<String>>(emptySet()) }
         var shopping by remember { mutableStateOf<ShoppingList?>(null) }
         var pantry by remember { mutableStateOf<List<PantryItem>>(emptyList()) }
         var editing by remember { mutableStateOf(false) }
@@ -57,7 +62,7 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
         LaunchedEffect(sharedUrl) { if (sharedUrl.isNotBlank()) { url = sharedUrl; selected = null; tab = "Recipes" } }
         LaunchedEffect(api) {
             busy = true
-            try { recipes = api.recipes(); pantry = api.pantry(); shopping = api.shopping() }
+            try { recipes = api.recipes(); pantry = api.pantry(); shopping = api.shopping(); products = api.products(); movements = api.movements() }
             catch (failure: Exception) { error = "Couldn't load your recipes. ${failure.message.orEmpty()}" }
             finally { busy = false }
         }
@@ -111,7 +116,7 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
                     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
                         Column(Modifier.padding(16.dp)) {
                             Text(message)
-                            TextButton(enabled = !busy, onClick = { operate { recipes = api.recipes(); pantry = api.pantry(); shopping = api.shopping() } }) { Text("Try again") }
+                            TextButton(enabled = !busy, onClick = { operate { recipes = api.recipes(); pantry = api.pantry(); shopping = api.shopping(); products = api.products(); movements = api.movements() } }) { Text("Try again") }
                         }
                     }
                 }
@@ -123,20 +128,35 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
                         } }, onCancel = { editing = false })
                 } else if (tab == "Shopping") {
                     ShoppingScreen(shopping, recipes, !busy,
-                        onRefresh = { operate { shopping = api.shopping(); recipes = api.recipes() } },
+                        onRefresh = { operate { shopping = api.shopping(); products = api.products(); movements = api.movements(); recipes = api.recipes() } },
                         onServings = { id, count -> operate { shopping = api.changeSelection(id, SelectionServingsRequest(count, shopping!!.version)) } },
                         onRemoveMeal = { id -> operate { shopping = api.removeSelection(id, shopping!!.version) } },
                         onManual = { name -> operate { shopping = api.manualShopping(ManualShoppingRequest(shoppingId(), name, shopping!!.version)) } },
                         onCheck = { id, checked -> operate { shopping = api.checkShopping(id, CheckShoppingRequest(checked, shopping!!.version)) } },
                         onRemoveManual = { id -> operate { shopping = api.removeShopping(id, shopping!!.version) } })
                 } else if (tab == "Pantry") {
-                    PantryEntry(enabled = !busy, onAdd = { item -> operate { api.add(item); pantry = api.pantry(); shopping = api.shopping() } })
+                    PantryScanner(products, productDraft, movements, !busy,
+                        onBarcode = { code, mode, amount -> operate {
+                            val remembered = products.find { it.barcode == code.trim().padStart(14, '0') }
+                            if (remembered == null) productDraft = api.productDraft(code.trim())
+                            else {
+                                api.stock(StockRequest(shoppingId(), remembered.barcode, mode, amount)); productDraft = null
+                                pantry = api.pantry(); shopping = api.shopping(); movements = api.movements()
+                            }
+                        } },
+                        onRemember = { product, mode, amount -> operate {
+                            val saved = api.rememberProduct(product); products = api.products(); productDraft = null
+                            api.stock(StockRequest(shoppingId(), saved.barcode, mode, amount))
+                            pantry = api.pantry(); shopping = api.shopping(); movements = api.movements()
+                        } }, onError = { error = it },
+                        onUndo = { id -> operate { api.undoStock(id, shoppingId()); pantry = api.pantry(); shopping = api.shopping(); movements = api.movements() } })
+                    PantryEntry(enabled = !busy, onAdd = { item -> operate { api.add(item); pantry = api.pantry(); shopping = api.shopping(); products = api.products(); movements = api.movements() } })
                     if (pantry.isEmpty()) Text("Add what you have. Your recipes will use it to work out what's missing.")
                     pantry.forEach { item ->
                         Card(Modifier.fillMaxWidth()) {
                             Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 Column(Modifier.weight(1f)) { Text(item.name, fontWeight = FontWeight.SemiBold); Text(amountLabel(item.amount, item.unit)) }
-                                TextButton(enabled = !busy, onClick = { operate { api.remove(item.id); pantry = api.pantry(); shopping = api.shopping() } }) { Text("Remove") }
+                                TextButton(enabled = !busy, onClick = { operate { api.remove(item.id); pantry = api.pantry(); shopping = api.shopping(); products = api.products(); movements = api.movements() } }) { Text("Remove") }
                             }
                         }
                     }
@@ -211,6 +231,22 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
                         } }) { Text("Add to shopping") }
                         Button(enabled = !busy && !previewLoading, modifier = Modifier.fillMaxWidth(), onClick = { operate { preview = api.preview(recipe.id, servings) } }) { Text("Refresh missing list") }
                     }
+                    if (recipe.baseServings != null) TextButton(enabled = !busy, onClick = { cooking = true; reconciledUses = emptySet() }) { Text("Log cooked meal") }
+                    if (cooking) AlertDialog(onDismissRequest = { cooking = false }, title = { Text("Log $servings servings cooked?") },
+                        text = { Column(Modifier.heightIn(max = 350.dp).verticalScroll(rememberScrollState())) {
+                            Text("This uses the recipe's tracked ingredients. If you already used ingredients by scanning, select those Use records to count them once.")
+                            movements.filter { use -> use.kind == "use" && movements.none { it.undoOf == use.id || (use.id in it.reconciledUseIds && movements.none { undo -> undo.undoOf == it.id }) } }.takeLast(10).forEach { use ->
+                                Row {
+                                    Checkbox(use.id in reconciledUses, enabled = !busy, onCheckedChange = { checked -> reconciledUses = if (checked) reconciledUses + use.id else reconciledUses - use.id })
+                                    Text(use.deltas.joinToString { "${it.amount.removePrefix("-")} ${it.lot.unit} ${it.lot.name}" })
+                                }
+                            }
+                        } },
+                        confirmButton = { TextButton(enabled = !busy, onClick = { operate {
+                            api.cook(recipe.id, CookRequest(shoppingId(), servings, recipe.revision, reconciledUses.toList()))
+                            pantry = api.pantry(); shopping = api.shopping(); movements = api.movements(); cooking = false
+                        } }) { Text("Log cooked") } },
+                        dismissButton = { TextButton(onClick = { cooking = false }) { Text("Cancel") } })
                     preview?.let { result ->
                         result.warnings.filterNot { it in recipe.warnings }.forEach { Text(it) }
                         Text("Missing list", style = MaterialTheme.typography.titleLarge)

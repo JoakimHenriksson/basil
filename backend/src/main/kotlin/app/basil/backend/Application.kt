@@ -28,6 +28,7 @@ fun Application.basil(
     fetcher: PageFetcher = PublicPageFetcher(),
     images: RecipeImages = RecipeImages(vault.mediaDirectory),
     extractor: RecipeExtractor? = GeminiRecipeExtractor.configured(),
+    products: ProductLookup = OpenFoodFactsLookup(),
 ) {
     install(ContentNegotiation) { json() }
     install(StatusPages) {
@@ -97,6 +98,18 @@ fun Application.basil(
             post("/shopping/items") { val request = call.receive<ManualShoppingRequest>(); call.respond(withContext(Dispatchers.IO) { vault.addShoppingItem(request) }) }
             put("/shopping/items/{id}") { val request = call.receive<CheckShoppingRequest>(); call.respond(withContext(Dispatchers.IO) { vault.checkShoppingItem(call.parameters["id"].orEmpty(), request) }) }
             delete("/shopping/items/{id}") { val request = call.receive<ShoppingVersionRequest>(); call.respond(withContext(Dispatchers.IO) { vault.removeShoppingItem(call.parameters["id"].orEmpty(), request.expectedVersion) }) }
+            get("/products") { call.respond(vault.products()) }
+            get("/products/{barcode}") {
+                val code = call.parameters["barcode"].orEmpty()
+                val saved = vault.product(code)
+                if (saved != null) call.respond(ProductDraft(saved.barcode, saved.name, saved.packageAmount, saved.unit, "Remembered product"))
+                else call.respond(withContext(Dispatchers.IO) { products.lookup(code) })
+            }
+            put("/products/{barcode}") { val request = call.receive<Product>(); require(Stock.barcode(request.barcode) == Stock.barcode(call.parameters["barcode"].orEmpty())) { "Product barcode mismatch." }; call.respond(withContext(Dispatchers.IO) { vault.rememberProduct(request) }) }
+            get("/stock/movements") { call.respond(vault.movements()) }
+            post("/stock") { val request = call.receive<StockRequest>(); call.respond(withContext(Dispatchers.IO) { vault.stock(request) }) }
+            post("/stock/{id}/undo") { val request = call.receive<UndoStockRequest>(); call.respond(withContext(Dispatchers.IO) { vault.undoStock(call.parameters["id"].orEmpty(), request) }) }
+            post("/recipes/{id}/cook") { val request = call.receive<CookRequest>(); call.respond(withContext(Dispatchers.IO) { vault.cook(call.parameters["id"].orEmpty(), request) }) }
             get("/pantry") { call.respond(vault.pantry()) }
             post("/pantry") { val request = call.receive<PantryRequest>(); call.respond(HttpStatusCode.Created, withContext(Dispatchers.IO) { vault.add(request) }) }
             delete("/pantry/{id}") {
