@@ -31,6 +31,7 @@ fun Application.basil(
 ) {
     install(ContentNegotiation) { json() }
     install(StatusPages) {
+        exception<RecipeConflict> { call, error -> call.respond(HttpStatusCode.Conflict, ApiError("recipe_changed", error.message!!)) }
         exception<BadRequestException> { call, _ -> call.respond(HttpStatusCode.BadRequest, ApiError("invalid_request", "Please check the recipe capture request.")) }
         exception<IllegalArgumentException> { call, error -> call.respond(HttpStatusCode.BadRequest, ApiError("invalid_request", error.message ?: "Please check the request.")) }
         exception<Throwable> { call, error ->
@@ -43,6 +44,26 @@ fun Application.basil(
         get("/health") { call.respond(mapOf("status" to "ok")) }
         route("/v1") {
             get("/recipes") { call.respond(vault.recipes()) }
+            post("/recipes") { call.respond(HttpStatusCode.Created, withContext(Dispatchers.IO) { vault.create(call.receive<RecipeEditRequest>()) }) }
+            get("/recipes/export") {
+                call.response.header(HttpHeaders.ContentDisposition, "attachment; filename=basil-recipes.zip")
+                call.respondBytes(withContext(Dispatchers.IO) { RecipeArchive.export(vault, images) }, ContentType.Application.Zip)
+            }
+            get("/recipes/{id}/history") { call.respond(vault.history(call.parameters["id"].orEmpty())) }
+            put("/recipes/{id}") {
+                val request = call.receive<RecipeEditRequest>()
+                val recipe = withContext(Dispatchers.IO) { vault.edit(call.parameters["id"].orEmpty(), request) }
+                if (recipe == null) call.respond(HttpStatusCode.NotFound) else call.respond(recipe)
+            }
+            put("/recipes/{id}/favourite") {
+                val request = call.receive<FavouriteRequest>()
+                val recipe = withContext(Dispatchers.IO) { vault.favourite(call.parameters["id"].orEmpty(), request.favourite) }
+                if (recipe == null) call.respond(HttpStatusCode.NotFound) else call.respond(recipe)
+            }
+            delete("/recipes/{id}") {
+                if (withContext(Dispatchers.IO) { vault.deleteRecipe(call.parameters["id"].orEmpty()) }) call.respond(HttpStatusCode.NoContent)
+                else call.respond(HttpStatusCode.NotFound)
+            }
             post("/recipes/import") {
                 val request = call.receive<ImportRequest>()
                 val recipe = withContext(Dispatchers.IO) { val (url, html) = fetcher.fetch(request.url.trim()); capture.save(CaptureRequest(url, html)) }

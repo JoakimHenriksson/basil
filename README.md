@@ -56,6 +56,18 @@ Standard recipe data is preferred. Blog-text fallback preserves the recipe and
 flags review; ambiguous yields can be set in the app. These checks cover the
 specific pages above, not every recipe on each site.
 
+## Recipe library
+
+Write a recipe manually or edit a saved copy. Edits keep the source and photo,
+retain prior revisions, and reject stale saves. Search titles, ingredients, and
+notes, or filter favourites. Export recipes opens the platform share sheet with
+a ZIP containing `recipes.json` (schema version 1) and retained `media/` photos.
+The export contains current recipes; back up the vault for revision history.
+
+Ingredient ranges scale both endpoints; shortages use the upper amount and say
+so. Teaspoons and tablespoons use metric 5 ml and 15 ml measures. Cups, fluid
+ounces, and unspecified packages still need review. Original lines remain saved.
+
 ## Gemini extraction
 
 Structured recipe data is used first. For other pages, the backend can use Gemini
@@ -92,5 +104,5 @@ Intelligence remain implementation work. Keep the unauthenticated service local.
 - [Backend](backend/README.md), [Android](android/README.md), [iOS](ios/README.md)
 - [API contracts](contracts/README.md)
 
-This slice lives in `feature/recipe-browser`, based on `feature/recipe-foundation`. The user owns integration into
+The recipe-library slice lives in `feature/recipe-library`, based on `feature/recipe-browser`. The user owns integration into
 `main`.

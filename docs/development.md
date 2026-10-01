@@ -16,6 +16,7 @@ Basil follows the worktree conventions in `~/src/cogitatibus/AGENTS.md` and
     app-plan/              Current planning worktree
     recipe-foundation/     First Kotlin implementation worktree
     recipe-browser/        Browser capture, photos, and Gemini extraction
+    recipe-library/        Editing, search, favourites, and export
     <name>/                Future feature worktrees
   bugfix/
     <name>/                Created when a bug fix needs a worktree
@@ -116,3 +117,7 @@ The recipe-browser slice is based on `feature/recipe-foundation`. Backend tests
 cover rendered captures, photo retention, and fake Gemini responses. An Android
 instrumented fixture covers Save recipe and the preserved source link; see the
 Android README for the isolated backend setup and device commands.
+
+The library slice retains edits as revisions, rejects stale saves, and exports
+current recipes with photos. Its Android journey covers creation, editing,
+favourites, and note search. See [the implementation backlog](backlog.md).

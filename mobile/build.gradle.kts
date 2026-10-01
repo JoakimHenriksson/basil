@@ -25,7 +25,10 @@ kotlin {
             implementation("io.ktor:ktor-client-content-negotiation:3.0.3")
             implementation("io.ktor:ktor-serialization-kotlinx-json:3.0.3")
         }
-        androidMain.dependencies { implementation("io.ktor:ktor-client-okhttp:3.0.3") }
+        androidMain.dependencies {
+            implementation("io.ktor:ktor-client-okhttp:3.0.3")
+            implementation("androidx.core:core-ktx:1.13.1")
+        }
         if (System.getProperty("os.name").startsWith("Mac")) {
             iosMain.dependencies { implementation("io.ktor:ktor-client-darwin:3.0.3") }
         }

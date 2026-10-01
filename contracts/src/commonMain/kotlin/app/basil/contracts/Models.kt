@@ -10,6 +10,7 @@ data class Ingredient(
     val unit: String = "unknown",
     val optional: Boolean = false,
     val needsReview: Boolean = false,
+    val maxAmount: String? = null,
 )
 
 @Serializable
@@ -25,6 +26,9 @@ data class Recipe(
     val warnings: List<String> = emptyList(),
     val originalImageUrl: String? = null,
     val imagePath: String? = null,
+    val favourite: Boolean = false,
+    val notes: String = "",
+    val revision: Int = 1,
 )
 
 @Serializable data class ImportRequest(val url: String)
@@ -42,3 +46,14 @@ data class Recipe(
 @Serializable data class ApiError(val code: String, val message: String)
 
 @Serializable data class CaptureRequest(val url: String, val html: String)
+
+@Serializable data class RecipeEditRequest(
+    val title: String,
+    val baseServings: Int?,
+    val ingredientLines: List<String>,
+    val instructions: List<String>,
+    val notes: String = "",
+    val expectedRevision: Int = 1,
+)
+@Serializable data class FavouriteRequest(val favourite: Boolean)
+@Serializable data class RecipeExport(val schemaVersion: Int = 1, val recipes: List<Recipe>)

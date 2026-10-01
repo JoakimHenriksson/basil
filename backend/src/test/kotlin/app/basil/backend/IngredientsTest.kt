@@ -21,7 +21,8 @@ class IngredientsTest {
     }
     @Test fun `unknown quantities and ranges remain visible`() {
         assertTrue(Ingredients.parse("salt efter smak").needsReview)
-        assertNull(Ingredients.parse("2–3 ägg").amount)
+        assertEquals("2", Ingredients.parse("2–3 ägg").amount)
+        assertEquals("3", Ingredients.parse("2–3 ägg").maxAmount)
         assertTrue(Ingredients.parse("2 burkar krossade tomater").needsReview)
     }
     @Test fun `scaling preserves instructions and subtracts stock once`() {

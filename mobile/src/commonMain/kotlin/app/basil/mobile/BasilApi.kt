@@ -35,5 +35,10 @@ class BasilApi(private val base: String) {
     suspend fun setYield(id: String, servings: Int): Recipe = client.put("$base/v1/recipes/$id/yield") { contentType(ContentType.Application.Json); setBody(YieldRequest(servings)) }.body()
     suspend fun add(item: PantryRequest): PantryItem = client.post("$base/v1/pantry") { contentType(ContentType.Application.Json); setBody(item) }.body()
     suspend fun remove(id: String) { client.delete("$base/v1/pantry/$id") }
+    suspend fun createRecipe(request: RecipeEditRequest): Recipe = client.post("$base/v1/recipes") { contentType(ContentType.Application.Json); setBody(request) }.body()
+    suspend fun editRecipe(id: String, request: RecipeEditRequest): Recipe = client.put("$base/v1/recipes/$id") { contentType(ContentType.Application.Json); setBody(request) }.body()
+    suspend fun favourite(id: String, value: Boolean): Recipe = client.put("$base/v1/recipes/$id/favourite") { contentType(ContentType.Application.Json); setBody(FavouriteRequest(value)) }.body()
+    suspend fun deleteRecipe(id: String) { client.delete("$base/v1/recipes/$id") }
+    suspend fun exportRecipes(): ByteArray = client.get("$base/v1/recipes/export").body()
     fun close() = client.close()
 }

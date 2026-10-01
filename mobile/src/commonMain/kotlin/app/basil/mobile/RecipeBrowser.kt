@@ -61,7 +61,7 @@ fun RecipeBrowser(
             }
         }
         Button(modifier = Modifier.fillMaxWidth(), enabled = enabled && !state.loading && !state.capturing,
-            onClick = { state.capture() }) { Text(if (!enabled || state.capturing) "Saving recipe…" else "Save recipe") }
+            onClick = { state.capture() }) { Text(if (!enabled || state.capturing) "Saving recipeâ€¦" else "Save recipe") }
         BrowserSurface(state, Modifier.fillMaxWidth().weight(1f), onCapture, onError)
     }
 }

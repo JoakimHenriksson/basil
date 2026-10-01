@@ -29,6 +29,11 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
         val scope = rememberCoroutineScope()
         var recipes by remember { mutableStateOf<List<Recipe>>(emptyList()) }
         var pantry by remember { mutableStateOf<List<PantryItem>>(emptyList()) }
+        var editing by remember { mutableStateOf(false) }
+        var deleting by remember { mutableStateOf(false) }
+        var query by remember { mutableStateOf("") }
+        var favouritesOnly by remember { mutableStateOf(false) }
+        val shareExport = rememberExportSharer()
         var selected by remember { mutableStateOf<Recipe?>(null) }
         var preview by remember { mutableStateOf<RecipePreview?>(null) }
         var servings by remember { mutableIntStateOf(1) }
@@ -55,7 +60,7 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
             catch (failure: Exception) { error = "Couldn't load your recipes. ${failure.message.orEmpty()}" }
             finally { busy = false }
         }
-        LaunchedEffect(selected?.id, selected?.baseServings, servings, pantry) {
+        LaunchedEffect(selected?.id, selected?.revision, selected?.baseServings, servings, pantry) {
             val recipe = selected ?: return@LaunchedEffect
             if (recipe.baseServings == null) return@LaunchedEffect
             previewLoading = true
@@ -98,7 +103,7 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
                 Text("Basil", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 Text("What would you like to eat?", style = MaterialTheme.typography.titleMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    listOf("Recipes", "Pantry").forEach { name -> FilterChip(selected = tab == name, enabled = !busy, onClick = { tab = name; selected = null; preview = null }, label = { Text(name) }) }
+                    listOf("Recipes", "Pantry").forEach { name -> FilterChip(selected = tab == name, enabled = !busy, onClick = { tab = name; selected = null; editing = false; preview = null }, label = { Text(name) }) }
                 }
                 if (busy || previewLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
                 error?.let { message ->
@@ -109,7 +114,13 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
                         }
                     }
                 }
-                if (tab == "Pantry") {
+                if (editing) {
+                    RecipeEditor(selected, !busy,
+                        onSave = { request -> operate {
+                            val updated = selected?.let { api.editRecipe(it.id, request) } ?: api.createRecipe(request)
+                            recipes = api.recipes(); selected = updated; servings = updated.baseServings ?: 1; preview = null; editing = false
+                        } }, onCancel = { editing = false })
+                } else if (tab == "Pantry") {
                     PantryEntry(enabled = !busy, onAdd = { item -> operate { api.add(item); pantry = api.pantry() } })
                     if (pantry.isEmpty()) Text("Add what you have. Your recipes will use it to work out what's missing.")
                     pantry.forEach { item ->
@@ -128,14 +139,24 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
                         operate { val saved = api.import(url.trim()); recipes = api.recipes(); selected = saved; servings = saved.baseServings ?: 1; preview = null; url = "" }
                     }) { Text("Save recipe") }
                     Text("Try a recipe from ICA, Arla, or Zeinas Kitchen. A saved copy stays here even if the original page disappears.", style = MaterialTheme.typography.bodyMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(enabled = !busy, onClick = { selected = null; editing = true }) { Text("Write a recipe") }
+                        TextButton(enabled = !busy && recipes.isNotEmpty(), onClick = { operate { shareExport(api.exportRecipes()) } }) { Text("Export recipes") }
+                    }
                     Text("Your recipes", style = MaterialTheme.typography.titleLarge)
+                    OutlinedTextField(query, { query = it }, label = { Text("Search recipes or ingredients") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    FilterChip(selected = favouritesOnly, onClick = { favouritesOnly = !favouritesOnly }, label = { Text("Favourites") })
+                    val visible = recipes.asReversed().filter { recipe ->
+                        (!favouritesOnly || recipe.favourite) && (query.isBlank() || recipe.title.contains(query.trim(), true) || recipe.notes.contains(query.trim(), true) || recipe.ingredients.any { it.original.contains(query.trim(), true) || it.name.contains(query.trim(), true) })
+                    }
+                    if (recipes.isNotEmpty() && visible.isEmpty()) Text("No recipes match this search.")
                     if (recipes.isEmpty()) Text("Your next good meal starts with a recipe. Paste a link above or share one from your browser.")
-                    recipes.asReversed().forEach { recipe ->
+                    visible.forEach { recipe ->
                         Card(onClick = { selected = recipe; servings = recipe.baseServings ?: 1; preview = null }, modifier = Modifier.fillMaxWidth(), enabled = !busy) {
                             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(recipe.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                                Text((if (recipe.favourite) "★ " else "") + recipe.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                                 Text("${recipe.ingredients.size} ingredients · ${recipe.yieldText.ifBlank { "Check yield" }}", style = MaterialTheme.typography.bodyMedium)
-                                Text(recipe.sourceUrl.substringAfter("://").substringBefore('/'), color = MaterialTheme.colorScheme.primary)
+                                Text(recipe.sourceUrl.takeIf { it.isNotBlank() }?.substringAfter("://")?.substringBefore('/') ?: "Your recipe", color = MaterialTheme.colorScheme.primary)
                             }
                         }
                     }
@@ -143,12 +164,24 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
                     val recipe = selected!!
                     TextButton(onClick = { selected = null; preview = null }, enabled = !busy) { Text("Back to recipes") }
                     Text(recipe.title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(enabled = !busy, onClick = { operate { selected = api.favourite(recipe.id, !recipe.favourite); recipes = api.recipes() } }) { Text(if (recipe.favourite) "★ Favourite" else "☆ Favourite") }
+                        TextButton(enabled = !busy, onClick = { editing = true }) { Text("Edit") }
+                        TextButton(enabled = !busy, onClick = { deleting = true }) { Text("Delete") }
+                    }
+                    if (deleting) AlertDialog(onDismissRequest = { deleting = false }, title = { Text("Delete this recipe?") },
+                        text = { Text("This removes the recipe and its saved revisions from your library.") },
+                        confirmButton = { TextButton(enabled = !busy, onClick = { operate { api.deleteRecipe(recipe.id); recipes = api.recipes(); selected = null; deleting = false; preview = null } }) { Text("Delete") } },
+                        dismissButton = { TextButton(onClick = { deleting = false }) { Text("Cancel") } })
                     recipe.imagePath?.let { path ->
                         AsyncImage(model = baseUrl.trimEnd('/') + path, contentDescription = recipe.title,
                             contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().height(220.dp))
                     }
-                    TextButton(onClick = { uriHandler.openUri(recipe.sourceUrl) }) { Text("Open original") }
-                    Text("Saved from ${recipe.sourceUrl}", style = MaterialTheme.typography.bodySmall)
+                    if (recipe.sourceUrl.isNotBlank()) {
+                        TextButton(onClick = { uriHandler.openUri(recipe.sourceUrl) }) { Text("Open original") }
+                        Text("Saved from ${recipe.sourceUrl}", style = MaterialTheme.typography.bodySmall)
+                    }
+                    if (recipe.notes.isNotBlank()) Text(recipe.notes)
                     recipe.warnings.forEach { Text(it, color = MaterialTheme.colorScheme.error) }
                     if (recipe.baseServings == null) {
                         var baseYield by remember(recipe.id) { mutableStateOf("") }
@@ -166,12 +199,13 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
                         Button(enabled = !busy && !previewLoading, modifier = Modifier.fillMaxWidth(), onClick = { operate { preview = api.preview(recipe.id, servings) } }) { Text("Refresh missing list") }
                     }
                     preview?.let { result ->
+                        result.warnings.filterNot { it in recipe.warnings }.forEach { Text(it) }
                         Text("Missing list", style = MaterialTheme.typography.titleLarge)
                         if (result.missing.isEmpty()) Text("You have the tracked ingredients for this meal.")
                         result.missing.forEach { item -> Text(if (item.needsReview) "Check: ${item.name}" else "${amountLabel(item.amount, item.unit)} ${item.name}") }
                     }
                     Text(if (preview == null) "Original ingredients" else "Ingredients for $servings", style = MaterialTheme.typography.titleLarge)
-                    (preview?.ingredients ?: recipe.ingredients).forEach { item -> Text(if (item.amount != null) "${amountLabel(item.amount, item.unit)} ${item.name}" else item.original) }
+                    (preview?.ingredients ?: recipe.ingredients).forEach { item -> Text(if (item.amount != null) "${amountLabel(item.amount?.let { if (item.maxAmount != null) "$it–${item.maxAmount}" else it }, item.unit)} ${item.name}" else item.original) }
                     Text("Method", style = MaterialTheme.typography.titleLarge)
                     recipe.instructions.forEachIndexed { index, step -> Text("${index + 1}. $step") }
                 }
