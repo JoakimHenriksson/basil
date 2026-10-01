@@ -247,7 +247,8 @@ deletion for recipes, drafts, and receipt images.
 
 ## Technical structure
 
-Use a monorepo with one Kotlin service and independent native mobile apps.
+Use a monorepo with one Kotlin service and separate Android and iOS app targets
+sharing Kotlin Multiplatform application code and a Compose Multiplatform UI.
 The backend owns shared data, permissions, stock operations, matching, shopping
 calculations, and money rules. Clients own native interfaces, cameras, sharing,
 local caches, and queued operations. iOS also owns local Apple inference.
@@ -267,8 +268,9 @@ flowchart LR
 | --- | --- |
 | Backend | Kotlin, Ktor, coroutines, kotlinx.serialization, Gradle Kotlin DSL. |
 | Data | PostgreSQL, Flyway, Exposed SQL DSL, and retained-import object storage. |
-| Android | Kotlin, Jetpack Compose, Room, WorkManager, native camera and share integrations. |
-| iOS | Swift, SwiftUI, URLSession, native camera, share, text recognition, and supported Apple AI; choose storage against final OS targets. |
+| Shared mobile | Kotlin Multiplatform, Compose Multiplatform, shared API models, and Ktor clients. |
+| Android | Kotlin app host and native camera, share, and background integrations. |
+| iOS | Kotlin UI and app logic, an iOS bootstrap, and native camera, share, text recognition, and Apple AI bridges. |
 | Shared API | Versioned REST JSON, OpenAPI, and common behavior fixtures. |
 | Identity | Managed OpenID Connect, PKCE, and household membership checks. |
 | Development | Pinned tools, local PostgreSQL, Android CI, and macOS CI for iOS. |

@@ -31,8 +31,9 @@ The normal command becomes available after the user establishes `main`.
 ## Project boundaries
 
 - `backend/`: Kotlin service and authoritative business rules.
-- `android/`: Kotlin and Jetpack Compose Android app.
-- `ios/`: Swift and SwiftUI iOS app.
+- `mobile/`: shared Kotlin Multiplatform UI and networking for Android and iOS.
+- `android/`: Kotlin Android host and platform integrations.
+- `ios/`: iOS host for the Kotlin UI; platform bootstrap only.
 - `contracts/`: versioned API contract shared by both apps.
 - `docs/`: product plan, architecture, and development workflow.
 

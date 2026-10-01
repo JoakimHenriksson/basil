@@ -1,0 +1,37 @@
+name: Kotlin checks
+on: [push, pull_request]
+jobs:
+  backend-and-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - run: bash gradlew :backend:test :android:assembleDebug
+  ios-simulator:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - run: brew install xcodegen
+      - name: Build Kotlin and iOS host
+        run: |
+          if [ "$(uname -m)" = "arm64" ]; then
+            target=iosSimulatorArm64
+            task=linkDebugFrameworkIosSimulatorArm64
+          else
+            target=iosX64
+            task=linkDebugFrameworkIosX64
+          fi
+          bash gradlew ":mobile:$task"
+          cd ios
+          xcodegen generate
+          xcodebuild -project Basil.xcodeproj -scheme Basil -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' "KOTLIN_TARGET=$target" CODE_SIGNING_ALLOWED=NO build

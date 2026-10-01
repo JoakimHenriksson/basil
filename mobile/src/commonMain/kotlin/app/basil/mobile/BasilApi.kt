@@ -1,0 +1,38 @@
+package app.basil.mobile
+
+import app.basil.contracts.*
+import io.ktor.client.*
+import io.ktor.client.engine.*
+import io.ktor.client.call.*
+import io.ktor.client.plugins.*
+import io.ktor.client.plugins.contentnegotiation.*
+import io.ktor.client.request.*
+import io.ktor.http.*
+import io.ktor.serialization.kotlinx.json.*
+import kotlinx.serialization.json.Json
+
+expect fun platformEngine(): HttpClientEngine
+
+class BasilApi(private val base: String) {
+    private val client = HttpClient(platformEngine()) {
+        install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+        install(HttpTimeout) { requestTimeoutMillis = 120_000 }
+        expectSuccess = true
+        HttpResponseValidator {
+            handleResponseExceptionWithRequest { exception, _ ->
+                if (exception is ResponseException) {
+                    val message = runCatching { exception.response.body<ApiError>().message }.getOrNull()
+                    throw IllegalStateException(message ?: "Basil couldn't finish that request. Please try again.")
+                }
+            }
+        }
+    }
+    suspend fun recipes(): List<Recipe> = client.get("$base/v1/recipes").body()
+    suspend fun pantry(): List<PantryItem> = client.get("$base/v1/pantry").body()
+    suspend fun import(url: String): Recipe = client.post("$base/v1/recipes/import") { contentType(ContentType.Application.Json); setBody(ImportRequest(url)) }.body()
+    suspend fun preview(id: String, servings: Int): RecipePreview = client.post("$base/v1/recipes/$id/preview") { contentType(ContentType.Application.Json); setBody(PreviewRequest(servings)) }.body()
+    suspend fun setYield(id: String, servings: Int): Recipe = client.put("$base/v1/recipes/$id/yield") { contentType(ContentType.Application.Json); setBody(YieldRequest(servings)) }.body()
+    suspend fun add(item: PantryRequest): PantryItem = client.post("$base/v1/pantry") { contentType(ContentType.Application.Json); setBody(item) }.body()
+    suspend fun remove(id: String) { client.delete("$base/v1/pantry/$id") }
+    fun close() = client.close()
+}

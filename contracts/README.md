@@ -1,19 +1,20 @@
-# Basil API contracts
+# Basil shared contracts
 
-This directory will hold the versioned OpenAPI definition for `/v1`, shared
-request and response examples, and compatibility fixtures used by the backend,
-Android, and iOS projects. The contract is planned and has not been written yet.
+Kotlin Multiplatform DTOs in [Models.kt](src/commonMain/kotlin/app/basil/contracts/Models.kt)
+are used directly by the backend and shared mobile app. JSON quantities are
+decimal strings; units in this first slice are grams, millilitres, or pieces.
+Ambiguous ingredient amounts remain null with a review indicator.
 
-Specify quantities with decimal values and units, money with integer minor
-units and an ISO currency code, UTC timestamps, local household dates, record
-versions, idempotency keys, and machine-readable error codes. Household identity
-must be checked by the backend for every operation.
+Current HTTP operations:
 
-Include fixtures for normalized site and photo recipes, servings and fractions,
-recipe shortages, barcode Add and Use, recipe costs, receipt reconciliation with
-prior stock additions, missing prices, invitations, duplicate requests, and
-concurrent offline changes. Gemini and Apple drafts map to the same recipe format.
-Both mobile apps must interpret the same fixture identically. Generate client
-types only after validating the chosen tooling for both Kotlin and Swift.
+- `GET /health`
+- `GET /v1/recipes` and `POST /v1/recipes/import`
+- `POST /v1/recipes/{id}/preview` and `PUT /v1/recipes/{id}/yield`
+- `GET /v1/pantry`, `POST /v1/pantry`, and `DELETE /v1/pantry/{id}`
 
-See the [app plan](../docs/app-plan.md) for the proposed API surface and rules.
+Domain and HTTP tests verify the shared payloads, scaling, and pantry shortages.
+This prototype API is local and unauthenticated. Household IDs, membership,
+record versions, stock operation IDs, money, AI drafts, and synchronization
+contracts are added with their corresponding slices.
+
+See the [product plan](../docs/app-plan.md) for those planned operations.

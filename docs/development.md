@@ -14,6 +14,7 @@ Basil follows the worktree conventions in `~/src/cogitatibus/AGENTS.md` and
   main/                    Reference worktree for main
   feature/
     app-plan/              Current planning worktree
+    recipe-foundation/     First Kotlin implementation worktree
     <name>/                Future feature worktrees
   bugfix/
     <name>/                Created when a bug fix needs a worktree
@@ -53,10 +54,16 @@ commits. The first planning worktree was therefore created with:
 git worktree add --orphan -b feature/app-plan feature/app-plan
 ```
 
-This creates an independent unborn branch without making a commit or changing
-the `main/` checkout. The planning documents are initially uncommitted in this
-worktree. The user can commit this branch and adopt its history when establishing
-`main`. Once `main` exists, create subsequent worktrees from it using the normal
+The planning documents were committed locally on `feature/app-plan`, and
+`feature/recipe-foundation` was created from that commit. Until the user establishes
+`main`, use a committed task branch as the base for the next worktree:
+
+```sh
+git worktree add -b feature/<name> feature/<name> feature/app-plan
+```
+
+The user owns adoption of the bootstrap history into `main`.
+Once `main` exists, create subsequent worktrees from it using the normal
 command above. Do not create more orphan branches for routine development.
 
 ## Project layout inside a worktree
@@ -64,20 +71,22 @@ command above. Do not create more orphan branches for routine development.
 ```text
 backend/                   Kotlin backend
 android/                   Native Android app
-ios/                       Native iOS app
-contracts/                 OpenAPI contract and representative API fixtures
+mobile/                    Kotlin Multiplatform UI and networking
+ios/                       iOS host for the Kotlin app
+contracts/                 Shared Kotlin Multiplatform API DTOs
 docs/                      Product plan and architecture decisions
 ```
 
-The component directories currently contain scope documents. Build files,
-application source code, deployment configuration, and CI are planned work.
+The foundation worktree contains a working local recipe slice, build files,
+backend tests, an Android app, and a shared Kotlin UI with an iOS host and CI.
+Deployment, authentication, shared households, and remaining product features
+are planned work. See the root README for executable commands.
 
 ## Development environment
 
 Use a pinned JDK and committed Gradle wrappers for the backend and Android.
-The initial recommendation is JDK 21, subject to compatibility checks when
-pinning Kotlin, Android Gradle Plugin, and the other libraries. Use Docker Compose
-for a local PostgreSQL instance once the backend is scaffolded. Each active
+The first implementation pins JDK 17 and Gradle 8.10.2. Use Docker Compose
+for a local PostgreSQL instance when production persistence is introduced. Each active
 worktree needs its own configuration, database or schema, and service ports.
 
 Android development requires Android Studio and an emulator or physical device.
@@ -94,10 +103,10 @@ Before implementation, pin the actual toolchain and document executable build
 commands in each component README. Backend and Android CI should use their
 Gradle wrappers; iOS CI should use an Xcode build and test scheme on macOS.
 
-Verify the domain calculations with meaningful tests, migrations against
-PostgreSQL, and both apps against the same API contract. Run relevant checks
-before committing a change. Documentation-only changes require a link and
-formatting check; there are no application tests to run at this stage.
+Run `:backend:test` for domain, import, persistence, and HTTP checks and
+`:android:assembleDebug` for the Android build. iOS needs a macOS build as described
+in its README. PostgreSQL migration checks become required when production
+persistence is introduced. Run relevant checks before committing a change.
 
 Keep generated files and secrets out of commits. Present changes in their task
 worktree for review; do not merge or push without the user's authorization.

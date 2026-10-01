@@ -39,3 +39,8 @@ Thumbs.db
 *.sqlite-shm
 *.sqlite-wal
 coverage/
+
+# Local prototype data and developer tools
+.local/
+backend/data/
+ios/Basil.xcodeproj/

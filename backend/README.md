@@ -1,21 +1,28 @@
-# Basil backend
+# Basil Kotlin backend
 
-Planned Kotlin service using Ktor, PostgreSQL, Flyway, and the Exposed SQL DSL.
-Use Gradle Kotlin DSL and a pinned wrapper when scaffolding the service.
+Ktor service with recipe-page import, durable local recipe storage, simple pantry
+entry, serving scaling, and missing-ingredient calculations. Quantities use
+decimal arithmetic; original recipe text and instructions are preserved.
 
-The backend owns shared households and invitations, preserved and normalized
-recipes, remembered barcodes and package sizes, stock movements, matching,
-missing lists, purchases, and budgets. It calls Gemini and validates imported
-or AI-assisted drafts, including results from local Apple inference.
+From the worktree root:
 
-Barcode additions and receipt imports must reconcile so the same package is
-not added twice. Recipe costs distinguish ingredient portions from whole
-packages bought. Recipe-site imports retain usable content after a site disappears.
+```sh
+./gradlew :backend:run
+./gradlew :backend:test
+```
 
-Start as one deployable service with internal modules for households, recipes,
-imports, stock, shopping, budgets, and cloud AI. Keep pure quantity and money rules
-separate from HTTP and persistence. Maintain the external API in
-[`contracts/`](../contracts/README.md).
+Use `gradlew.bat` on Windows. The root README documents this machine's HTTPS
+certificate configuration. Settings are `BASIL_PORT` (default 8787),
+`BASIL_HOST` (default 127.0.0.1), and `BASIL_DATA` (default data/vault.json,
+relative to the backend directory).
 
-See the [app plan](../docs/app-plan.md) for the proposed data model, invariants,
-endpoints, and implementation milestones. No backend has been scaffolded yet.
+The vault writes a temporary file and atomically replaces the saved state.
+Duplicate imports of the same final source URL reuse the saved recipe.
+A missing source page does not affect previously stored content.
+
+Tests cover structured and blog imports, fractions, unknown units, stock
+allocation, persistence, private-address rejection, and the HTTP recipe flow.
+
+See [API contracts](../contracts/README.md) and the [product plan](../docs/app-plan.md).
+This slice has no authentication or shared-household persistence. PostgreSQL,
+migrations, identities, and the remaining features are future implementation.

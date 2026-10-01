@@ -1,0 +1,19 @@
+name: Basil
+options:
+  bundleIdPrefix: app.basil
+  deploymentTarget:
+    iOS: "17.0"
+targets:
+  Basil:
+    type: application
+    platform: iOS
+    sources: [Host]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.basil.ios
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Basil
+        INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking: YES
+        KOTLIN_TARGET: iosSimulatorArm64
+        FRAMEWORK_SEARCH_PATHS: "$(inherited) $(SRCROOT)/../mobile/build/bin/$(KOTLIN_TARGET)/debugFramework"
+        OTHER_LDFLAGS: "$(inherited) -framework BasilUI"

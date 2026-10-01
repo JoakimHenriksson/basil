@@ -1,21 +1,21 @@
 # Basil Android app
 
-Planned native Android application using Kotlin, Jetpack Compose, coroutines,
-Room for local storage, WorkManager for queued synchronization, and Hilt for
-dependency injection. Pin the Android and Kotlin toolchain at implementation.
+Kotlin Android host for the shared [Kotlin app](../mobile/src/commonMain/kotlin/app/basil/mobile/BasilApp.kt).
+It supports recipe-link sharing through Android's Share menu, importing and
+browsing saved recipes, choosing yields and servings, displaying missing lists,
+and simple pantry entry.
 
-Recipes lead the app: share a recipe-site link, keep a normalized copy, choose
-servings, and get a missing list. Add a camera scanner with visible Add and Use
-modes, remembered barcodes, partial quantities, and Undo. Support recipe and
-receipt scans, household sharing, and Gemini-assisted suggestions.
+Build from the worktree root with JDK 17 and Android SDK 35:
 
-Read the versioned backend API and cache recipes, known products, pantry, and
-shopping data. Queue known-product scans and shopping changes offline and show
-pending changes and synchronization conflicts explicitly. Meal dates are optional.
+```sh
+./gradlew :android:assembleDebug
+```
 
-Keep presentation and local storage in the Android project. The Kotlin backend
-owns recipe matching and financial calculations. Store authentication tokens
-using Android Keystore-backed storage and call Gemini through the backend.
+Install `android/build/outputs/apk/debug/android-debug.apk`. The debug app
+connects to the host backend through `http://10.0.2.2:8787` on an emulator.
+Override the address with `-Pbasil.apiUrl=https://your-development-service`
+when building. Local HTTP is enabled only in the debug manifest.
 
-See the [app plan](../docs/app-plan.md) and [API contract scope](../contracts/README.md).
-No Android application has been scaffolded yet.
+The build is verified on Windows. Barcode scanning, device share-flow QA,
+offline storage and queued changes, AI, and budgets are not implemented yet.
+See the [product plan](../docs/app-plan.md).
