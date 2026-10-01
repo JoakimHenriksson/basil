@@ -28,6 +28,7 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
         val api = remember(baseUrl) { BasilApi(baseUrl) }
         val scope = rememberCoroutineScope()
         var recipes by remember { mutableStateOf<List<Recipe>>(emptyList()) }
+        var shopping by remember { mutableStateOf<ShoppingList?>(null) }
         var pantry by remember { mutableStateOf<List<PantryItem>>(emptyList()) }
         var editing by remember { mutableStateOf(false) }
         var deleting by remember { mutableStateOf(false) }
@@ -56,7 +57,7 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
         LaunchedEffect(sharedUrl) { if (sharedUrl.isNotBlank()) { url = sharedUrl; selected = null; tab = "Recipes" } }
         LaunchedEffect(api) {
             busy = true
-            try { recipes = api.recipes(); pantry = api.pantry() }
+            try { recipes = api.recipes(); pantry = api.pantry(); shopping = api.shopping() }
             catch (failure: Exception) { error = "Couldn't load your recipes. ${failure.message.orEmpty()}" }
             finally { busy = false }
         }
@@ -103,14 +104,14 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
                 Text("Basil", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 Text("What would you like to eat?", style = MaterialTheme.typography.titleMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    listOf("Recipes", "Pantry").forEach { name -> FilterChip(selected = tab == name, enabled = !busy, onClick = { tab = name; selected = null; editing = false; preview = null }, label = { Text(name) }) }
+                    listOf("Recipes", "Pantry", "Shopping").forEach { name -> FilterChip(selected = tab == name, enabled = !busy, onClick = { tab = name; selected = null; editing = false; preview = null }, label = { Text(name) }) }
                 }
                 if (busy || previewLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
                 error?.let { message ->
                     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
                         Column(Modifier.padding(16.dp)) {
                             Text(message)
-                            TextButton(enabled = !busy, onClick = { operate { recipes = api.recipes(); pantry = api.pantry() } }) { Text("Try again") }
+                            TextButton(enabled = !busy, onClick = { operate { recipes = api.recipes(); pantry = api.pantry(); shopping = api.shopping() } }) { Text("Try again") }
                         }
                     }
                 }
@@ -120,14 +121,22 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
                             val updated = selected?.let { api.editRecipe(it.id, request) } ?: api.createRecipe(request)
                             recipes = api.recipes(); selected = updated; servings = updated.baseServings ?: 1; preview = null; editing = false
                         } }, onCancel = { editing = false })
+                } else if (tab == "Shopping") {
+                    ShoppingScreen(shopping, recipes, !busy,
+                        onRefresh = { operate { shopping = api.shopping(); recipes = api.recipes() } },
+                        onServings = { id, count -> operate { shopping = api.changeSelection(id, SelectionServingsRequest(count, shopping!!.version)) } },
+                        onRemoveMeal = { id -> operate { shopping = api.removeSelection(id, shopping!!.version) } },
+                        onManual = { name -> operate { shopping = api.manualShopping(ManualShoppingRequest(shoppingId(), name, shopping!!.version)) } },
+                        onCheck = { id, checked -> operate { shopping = api.checkShopping(id, CheckShoppingRequest(checked, shopping!!.version)) } },
+                        onRemoveManual = { id -> operate { shopping = api.removeShopping(id, shopping!!.version) } })
                 } else if (tab == "Pantry") {
-                    PantryEntry(enabled = !busy, onAdd = { item -> operate { api.add(item); pantry = api.pantry() } })
+                    PantryEntry(enabled = !busy, onAdd = { item -> operate { api.add(item); pantry = api.pantry(); shopping = api.shopping() } })
                     if (pantry.isEmpty()) Text("Add what you have. Your recipes will use it to work out what's missing.")
                     pantry.forEach { item ->
                         Card(Modifier.fillMaxWidth()) {
                             Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 Column(Modifier.weight(1f)) { Text(item.name, fontWeight = FontWeight.SemiBold); Text(amountLabel(item.amount, item.unit)) }
-                                TextButton(enabled = !busy, onClick = { operate { api.remove(item.id); pantry = api.pantry() } }) { Text("Remove") }
+                                TextButton(enabled = !busy, onClick = { operate { api.remove(item.id); pantry = api.pantry(); shopping = api.shopping() } }) { Text("Remove") }
                             }
                         }
                     }
@@ -196,6 +205,10 @@ fun BasilApp(baseUrl: String, sharedUrl: String = "") {
                             Text("$servings ${if (recipe.yieldText.contains("makes", true)) "pieces" else "servings"}", Modifier.padding(top = 12.dp))
                             OutlinedButton(enabled = !busy && !previewLoading && servings < 1000, onClick = { servings++; preview = null }) { Text("+") }
                         }
+                        Button(enabled = !busy && shopping != null, modifier = Modifier.fillMaxWidth(), onClick = { operate {
+                            shopping = api.selectMeal(SelectMealRequest(shoppingId(), recipe.id, recipe.revision, servings, shopping!!.version))
+                            selected = null; preview = null; tab = "Shopping"
+                        } }) { Text("Add to shopping") }
                         Button(enabled = !busy && !previewLoading, modifier = Modifier.fillMaxWidth(), onClick = { operate { preview = api.preview(recipe.id, servings) } }) { Text("Refresh missing list") }
                     }
                     preview?.let { result ->

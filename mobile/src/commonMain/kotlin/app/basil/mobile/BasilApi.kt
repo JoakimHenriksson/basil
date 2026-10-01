@@ -40,5 +40,12 @@ class BasilApi(private val base: String) {
     suspend fun favourite(id: String, value: Boolean): Recipe = client.put("$base/v1/recipes/$id/favourite") { contentType(ContentType.Application.Json); setBody(FavouriteRequest(value)) }.body()
     suspend fun deleteRecipe(id: String) { client.delete("$base/v1/recipes/$id") }
     suspend fun exportRecipes(): ByteArray = client.get("$base/v1/recipes/export").body()
+    suspend fun shopping(): ShoppingList = client.get("$base/v1/shopping").body()
+    suspend fun selectMeal(request: SelectMealRequest): ShoppingList = client.post("$base/v1/shopping/selections") { contentType(ContentType.Application.Json); setBody(request) }.body()
+    suspend fun changeSelection(id: String, request: SelectionServingsRequest): ShoppingList = client.put("$base/v1/shopping/selections/$id") { contentType(ContentType.Application.Json); setBody(request) }.body()
+    suspend fun removeSelection(id: String, version: String): ShoppingList = client.delete("$base/v1/shopping/selections/$id") { contentType(ContentType.Application.Json); setBody(ShoppingVersionRequest(version)) }.body()
+    suspend fun manualShopping(request: ManualShoppingRequest): ShoppingList = client.post("$base/v1/shopping/items") { contentType(ContentType.Application.Json); setBody(request) }.body()
+    suspend fun checkShopping(id: String, request: CheckShoppingRequest): ShoppingList = client.put("$base/v1/shopping/items/$id") { contentType(ContentType.Application.Json); setBody(request) }.body()
+    suspend fun removeShopping(id: String, version: String): ShoppingList = client.delete("$base/v1/shopping/items/$id") { contentType(ContentType.Application.Json); setBody(ShoppingVersionRequest(version)) }.body()
     fun close() = client.close()
 }

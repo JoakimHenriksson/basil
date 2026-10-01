@@ -9,7 +9,7 @@ import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.util.UUID
 
-@Serializable private data class VaultState(val recipes: List<Recipe> = emptyList(), val pantry: List<PantryItem> = emptyList(), val recipeHistory: List<Recipe> = emptyList())
+@Serializable private data class VaultState(val recipes: List<Recipe> = emptyList(), val pantry: List<PantryItem> = emptyList(), val recipeHistory: List<Recipe> = emptyList(), val shopping: ShoppingState = ShoppingState())
 
 /** Local prototype storage. Production household persistence is a later slice. */
 class Vault(private val file: Path) {
@@ -82,13 +82,67 @@ class Vault(private val file: Path) {
         persist(state.copy(pantry = state.pantry.filterNot { it.id == id }))
         return true
     }
+    @Synchronized fun shopping(): ShoppingList = Shopping.list(state.shopping, state.pantry)
+    private fun checkShoppingVersion(expected: String) = Shopping.requireVersion(state.shopping, state.pantry, expected)
+    private fun saveShopping(next: ShoppingState): ShoppingList {
+        persist(state.copy(shopping = next.copy(revision = state.shopping.revision + 1)))
+        return shopping()
+    }
+    @Synchronized fun selectMeal(request: SelectMealRequest): ShoppingList {
+        require(request.id.matches(Regex("[a-zA-Z0-9-]{1,80}"))) { "Invalid selection ID." }
+        state.shopping.selections.find { it.id == request.id }?.let {
+            require(it.recipe.id == request.recipeId && it.recipe.revision == request.recipeRevision && it.servings == request.servings) { "Selection ID already used." }
+            return shopping()
+        }
+        checkShoppingVersion(request.expectedVersion)
+        require(state.shopping.selections.size < 100) { "The shopping list already contains 100 meals." }
+        val recipe = requireNotNull(recipe(request.recipeId)) { "That recipe is no longer available." }
+        if (recipe.revision != request.recipeRevision) throw RecipeConflict()
+        Ingredients.preview(recipe, request.servings, emptyList())
+        return saveShopping(state.shopping.copy(selections = state.shopping.selections + MealSelection(request.id, recipe, request.servings)))
+    }
+    @Synchronized fun changeSelection(id: String, request: SelectionServingsRequest): ShoppingList {
+        checkShoppingVersion(request.expectedVersion)
+        val selected = requireNotNull(state.shopping.selections.find { it.id == id }) { "That meal is no longer selected." }
+        Ingredients.preview(selected.recipe, request.servings, emptyList())
+        return saveShopping(state.shopping.copy(selections = state.shopping.selections.map { if (it.id == id) it.copy(servings = request.servings) else it }))
+    }
+    @Synchronized fun removeSelection(id: String, version: String): ShoppingList {
+        checkShoppingVersion(version)
+        return saveShopping(state.shopping.copy(selections = state.shopping.selections.filterNot { it.id == id }))
+    }
+    @Synchronized fun addShoppingItem(request: ManualShoppingRequest): ShoppingList {
+        require(request.id.matches(Regex("[a-zA-Z0-9-]{1,80}"))) { "Invalid item ID." }
+        require(request.name.isNotBlank() && request.name.length <= 250) { "Enter an item of up to 250 characters." }
+        val id = "manual-${request.id}"
+        state.shopping.manual.find { it.id == id }?.let {
+            require(it.name == request.name.trim()) { "Item ID already used." }
+            return shopping()
+        }
+        checkShoppingVersion(request.expectedVersion)
+        require(state.shopping.manual.size < 200) { "The list already contains 200 manual items." }
+        return saveShopping(state.shopping.copy(manual = state.shopping.manual + ShoppingItem(id, request.name.trim(), null, "", manual = true)))
+    }
+    @Synchronized fun checkShoppingItem(id: String, request: CheckShoppingRequest): ShoppingList {
+        checkShoppingVersion(request.expectedVersion)
+        val item = requireNotNull(shopping().items.find { it.id == id }) { "That shopping item changed. Refresh the list." }
+        val next = if (item.manual) state.shopping.copy(manual = state.shopping.manual.map { if (it.id == id) it.copy(checked = request.checked) else it })
+            else state.shopping.copy(checks = if (request.checked) state.shopping.checks + (id to Shopping.signature(item, state.shopping.selections)) else state.shopping.checks - id)
+        return saveShopping(next)
+    }
+    @Synchronized fun removeShoppingItem(id: String, version: String): ShoppingList {
+        checkShoppingVersion(version)
+        return saveShopping(state.shopping.copy(manual = state.shopping.manual.filterNot { it.id == id }))
+    }
     private fun persist(next: VaultState) {
+        val validChecks = Shopping.list(next.shopping, next.pantry).items.filter { it.checked && !it.manual }.map { it.id }.toSet()
+        val normalized = next.copy(shopping = next.shopping.copy(checks = next.shopping.checks.filterKeys { it in validChecks }))
         Files.createDirectories(file.toAbsolutePath().parent)
         val temporary = Files.createTempFile(file.toAbsolutePath().parent, "basil-", ".json")
         try {
-            Files.writeString(temporary, json.encodeToString(next))
+            Files.writeString(temporary, json.encodeToString(normalized))
             Files.move(temporary, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
-            state = next
+            state = normalized
         } finally { Files.deleteIfExists(temporary) }
     }
 }

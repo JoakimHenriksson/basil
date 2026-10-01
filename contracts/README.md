@@ -23,3 +23,21 @@ See the [product plan](../docs/app-plan.md) for those planned operations.
 Recipes include an optional retained `imagePath` and `originalImageUrl`. The
 original recipe URL is always `sourceUrl`. New fields have defaults so older
 vaults remain readable. Browser capture payloads are not persisted.
+
+## Library and shopping operations
+
+- `POST /v1/recipes`, `PUT /v1/recipes/{id}`, `DELETE /v1/recipes/{id}`
+- `PUT /v1/recipes/{id}/favourite`, `GET /v1/recipes/{id}/history`
+- `GET /v1/recipes/export` returns a ZIP of current recipes and retained photos.
+- `GET /v1/shopping` returns selections, combined items, warnings, and a version.
+- `POST /v1/shopping/selections` pins the selected recipe revision and servings.
+- `PUT /v1/shopping/selections/{id}` changes servings; `DELETE` removes the meal.
+- `POST /v1/shopping/items` adds a manual item.
+- `PUT /v1/shopping/items/{id}` checks/unchecks an item; `DELETE` removes a manual item.
+
+See [Shopping.kt](src/commonMain/kotlin/app/basil/contracts/Shopping.kt).
+Shopping mutations carry `expectedVersion` from the latest list. A stale version
+returns HTTP 409. Create requests include client-generated IDs; identical retries
+do not duplicate meals or manual items. Recipe edits use `expectedRevision`.
+No shopping operation mutates pantry stock. Selected snapshots survive library
+edits/deletion; removing a meal explicitly releases its shopping requirements.

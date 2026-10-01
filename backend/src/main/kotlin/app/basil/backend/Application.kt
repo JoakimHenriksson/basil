@@ -31,6 +31,7 @@ fun Application.basil(
 ) {
     install(ContentNegotiation) { json() }
     install(StatusPages) {
+        exception<ShoppingConflict> { call, error -> call.respond(HttpStatusCode.Conflict, ApiError("shopping_changed", error.message!!)) }
         exception<RecipeConflict> { call, error -> call.respond(HttpStatusCode.Conflict, ApiError("recipe_changed", error.message!!)) }
         exception<BadRequestException> { call, _ -> call.respond(HttpStatusCode.BadRequest, ApiError("invalid_request", "Please check the recipe capture request.")) }
         exception<IllegalArgumentException> { call, error -> call.respond(HttpStatusCode.BadRequest, ApiError("invalid_request", error.message ?: "Please check the request.")) }
@@ -89,6 +90,13 @@ fun Application.basil(
                 if (updated == null) call.respond(HttpStatusCode.NotFound, ApiError("recipe_not_found", "That recipe is not in the vault."))
                 else call.respond(updated)
             }
+            get("/shopping") { call.respond(vault.shopping()) }
+            post("/shopping/selections") { val request = call.receive<SelectMealRequest>(); call.respond(withContext(Dispatchers.IO) { vault.selectMeal(request) }) }
+            put("/shopping/selections/{id}") { val request = call.receive<SelectionServingsRequest>(); call.respond(withContext(Dispatchers.IO) { vault.changeSelection(call.parameters["id"].orEmpty(), request) }) }
+            delete("/shopping/selections/{id}") { val request = call.receive<ShoppingVersionRequest>(); call.respond(withContext(Dispatchers.IO) { vault.removeSelection(call.parameters["id"].orEmpty(), request.expectedVersion) }) }
+            post("/shopping/items") { val request = call.receive<ManualShoppingRequest>(); call.respond(withContext(Dispatchers.IO) { vault.addShoppingItem(request) }) }
+            put("/shopping/items/{id}") { val request = call.receive<CheckShoppingRequest>(); call.respond(withContext(Dispatchers.IO) { vault.checkShoppingItem(call.parameters["id"].orEmpty(), request) }) }
+            delete("/shopping/items/{id}") { val request = call.receive<ShoppingVersionRequest>(); call.respond(withContext(Dispatchers.IO) { vault.removeShoppingItem(call.parameters["id"].orEmpty(), request.expectedVersion) }) }
             get("/pantry") { call.respond(vault.pantry()) }
             post("/pantry") { val request = call.receive<PantryRequest>(); call.respond(HttpStatusCode.Created, withContext(Dispatchers.IO) { vault.add(request) }) }
             delete("/pantry/{id}") {

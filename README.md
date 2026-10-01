@@ -68,6 +68,17 @@ Ingredient ranges scale both endpoints; shortages use the upper amount and say
 so. Teaspoons and tablespoons use metric 5 ml and 15 ml measures. Cups, fluid
 ounces, and unspecified packages still need review. Original lines remain saved.
 
+## Shopping
+
+Choose servings on a recipe and tap **Add to shopping**. The Shopping tab keeps
+selected meals, combines their requirements, and allocates pantry stock once.
+Adjust servings, remove meals, add extras, or check items off. Selected recipes
+keep their saved revision even after editing or deleting the library copy.
+Changed requirements reset check-off; manual items survive recalculation.
+Checking off an item does not add stock. Record the purchase in Pantry.
+Refresh after another client changes the list; stale writes are rejected.
+Offline shopping is part of the later synchronization slice.
+
 ## Gemini extraction
 
 Structured recipe data is used first. For other pages, the backend can use Gemini
@@ -104,5 +115,5 @@ Intelligence remain implementation work. Keep the unauthenticated service local.
 - [Backend](backend/README.md), [Android](android/README.md), [iOS](ios/README.md)
 - [API contracts](contracts/README.md)
 
-The recipe-library slice lives in `feature/recipe-library`, based on `feature/recipe-browser`. The user owns integration into
+The shopping slice lives in `feature/shopping`, based on `feature/recipe-library`. The user owns integration into
 `main`.

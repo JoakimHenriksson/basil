@@ -6,9 +6,9 @@ not production readiness.
 
 1. Recipe library: implemented and locally verified. Manual recipes, editing,
    saved revisions, search, favourites, normalization, and photo ZIP export.
-2. Shopping: next. Persist recipe selections and servings, pin recipe revisions,
+2. Shopping: implemented and locally verified. Persist recipe selections and servings, pin recipe revisions,
    allocate pantry stock once, combine shortages, manual items, and check-off.
-3. Pantry convenience: pending. Remember products, barcode Add/Use, partial
+3. Pantry convenience: next. Remember products, barcode Add/Use, partial
    quantities, Undo, and cooking reconciliation.
 4. Household sharing and offline synchronization: pending. Identity, membership,
    durable storage, invitations, conflicts, caches, and queued operations.
@@ -25,3 +25,8 @@ certificates; SSL errors remain rejected. Android fixture tests exercise the
 actual WebView without bypassing certificate checks.
 
 See [the product plan](app-plan.md) and [development workflow](development.md).
+
+Shopping verification: backend allocation, pinned snapshots, persistence, retry
+deduplication, stale edits, and changed check-off tests pass. Android selected
+servings, extras, meal removal, check-off, and refresh journey passes. Offline
+shopping remains in item 4; iOS device verification remains pending.
